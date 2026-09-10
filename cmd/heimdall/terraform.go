@@ -12,14 +12,18 @@ func newTerraformCmd(gf *globalFlags) *cobra.Command {
 		Short:   "Diagnóstico e correção de Terraform (drift, state, import)",
 		Long: `Módulo Terraform Doctor.
 
-Subcomando disponível: plan-review, que analisa a saída de
-'terraform show -json' e destaca as operações destrutivas do plano.`,
+Subcomandos disponíveis:
+
+  plan-review  analisa a saída de 'terraform show -json' e destaca as
+               operações destrutivas do plano
+  states       lista os states de um container do Azure e o lock de cada um`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return cmd.Help()
 		},
 	}
 
 	cmd.AddCommand(newPlanReviewCmd(gf))
+	cmd.AddCommand(newStatesCmd(gf))
 
 	return cmd
 }
