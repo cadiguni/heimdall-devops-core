@@ -5,21 +5,21 @@ import (
 )
 
 // newTerraformCmd é o grupo do módulo Terraform Doctor.
-// Por enquanto só expõe --help; os subcomandos (a começar por plan-review)
-// entram conforme internal/terraform for implementado.
-func newTerraformCmd(_ *globalFlags) *cobra.Command {
+func newTerraformCmd(gf *globalFlags) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:     "terraform",
 		Aliases: []string{"tf"},
 		Short:   "Diagnóstico e correção de Terraform (drift, state, import)",
 		Long: `Módulo Terraform Doctor.
 
-Nenhum subcomando implementado ainda. O primeiro será 'plan-review',
-que analisa a saída de 'terraform show -json' de um plano.`,
+Subcomando disponível: plan-review, que analisa a saída de
+'terraform show -json' e destaca as operações destrutivas do plano.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return cmd.Help()
 		},
 	}
+
+	cmd.AddCommand(newPlanReviewCmd(gf))
 
 	return cmd
 }

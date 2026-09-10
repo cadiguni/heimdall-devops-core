@@ -1,0 +1,162 @@
+package main
+
+import (
+	"bytes"
+	"context"
+	"encoding/json"
+	"errors"
+	"os"
+	"strings"
+	"testing"
+)
+
+// As fixtures vivem junto do pacote que as analisa; aqui só reusamos.
+const fixtureDir = "../../internal/terraform/testdata/"
+
+// runCLI executa o comando raiz com os argumentos dados e devolve stdout e o
+// erro final — o mesmo que o main() converte em código de saída.
+func runCLI(t *testing.T, stdin string, args ...string) (string, error) {
+	t.Helper()
+
+	var out bytes.Buffer
+	cmd := newRootCmd()
+	cmd.SetArgs(args)
+	cmd.SetOut(&out)
+	cmd.SetErr(&out)
+	cmd.SetIn(strings.NewReader(stdin))
+
+	err := cmd.ExecuteContext(context.Background())
+	return out.String(), err
+}
+
+func TestPlanReviewSaiCom2QuandoHaDestruicao(t *testing.T) {
+	out, err := runCLI(t, "", "terraform", "plan-review", "--plan-json", fixtureDir+"plan_mixed.json")
+
+	var exitErr *exitError
+	if !errors.As(err, &exitErr) {
+		t.Fatalf("erro = %v, quero *exitError", err)
+	}
+	if exitErr.code != exitCodeDestructive {
+		t.Errorf("código de saída = %d, quero %d", exitErr.code, exitCodeDestructive)
+	}
+	if exitCodeFor(err) != exitCodeDestructive {
+		t.Errorf("exitCodeFor = %d, quero %d", exitCodeFor(err), exitCodeDestructive)
+	}
+	if !strings.Contains(out, "terraform_data.to_delete") {
+		t.Errorf("relatório não listou o recurso destruído:\n%s", out)
+	}
+}
+
+func TestPlanReviewFailOnDestroyDesligado(t *testing.T) {
+	out, err := runCLI(t, "",
+		"terraform", "plan-review",
+		"--plan-json", fixtureDir+"plan_mixed.json",
+		"--fail-on-destroy=false",
+	)
+
+	if err != nil {
+		t.Fatalf("erro = %v, quero nil com o gate desligado", err)
+	}
+	// O relatório continua mostrando a destruição; só não reprova.
+	if !strings.Contains(out, "Operações destrutivas") {
+		t.Errorf("relatório deveria continuar listando as destrutivas:\n%s", out)
+	}
+}
+
+func TestPlanReviewPlanoLimpoSaiCom0(t *testing.T) {
+	if _, err := runCLI(t, "", "terraform", "plan-review", "--plan-json", fixtureDir+"plan_no_changes.json"); err != nil {
+		t.Fatalf("erro = %v, quero nil", err)
+	}
+}
+
+func TestPlanReviewSaidaJSON(t *testing.T) {
+	out, err := runCLI(t, "",
+		"terraform", "plan-review",
+		"--plan-json", fixtureDir+"plan_mixed.json",
+		"--output", "json",
+		"--fail-on-destroy=false",
+	)
+	if err != nil {
+		t.Fatalf("erro = %v", err)
+	}
+
+	var review struct {
+		Summary struct {
+			Delete  int `json:"delete"`
+			Replace int `json:"replace"`
+		} `json:"summary"`
+		Destructive []struct {
+			Address string `json:"address"`
+			Kind    string `json:"kind"`
+		} `json:"destructive"`
+	}
+	if err := json.Unmarshal([]byte(out), &review); err != nil {
+		t.Fatalf("saída não é JSON válido: %v\n%s", err, out)
+	}
+
+	if review.Summary.Delete != 1 || review.Summary.Replace != 1 {
+		t.Errorf("resumo JSON inesperado: %+v", review.Summary)
+	}
+	if len(review.Destructive) != 2 {
+		t.Errorf("destrutivas no JSON = %d, quero 2", len(review.Destructive))
+	}
+}
+
+func TestPlanReviewLeStdin(t *testing.T) {
+	plano, err := os.ReadFile(fixtureDir + "plan_mixed.json")
+	if err != nil {
+		t.Fatalf("lendo fixture: %v", err)
+	}
+
+	out, err := runCLI(t, string(plano),
+		"terraform", "plan-review", "--plan-json", "-", "--fail-on-destroy=false",
+	)
+	if err != nil {
+		t.Fatalf("erro = %v", err)
+	}
+	if !strings.Contains(out, "terraform_data.to_replace") {
+		t.Errorf("plano do stdin não foi analisado:\n%s", out)
+	}
+}
+
+func TestPlanReviewErrosSaemCom1(t *testing.T) {
+	tests := []struct {
+		name string
+		args []string
+	}{
+		{"arquivo inexistente", []string{"terraform", "plan-review", "--plan-json", fixtureDir + "nao_existe.json"}},
+		{"formato de saída inválido", []string{"terraform", "plan-review", "--plan-json", fixtureDir + "plan_mixed.json", "--output", "yaml"}},
+		{"sem --plan-json", []string{"terraform", "plan-review"}},
+		{"argumento posicional inesperado", []string{"terraform", "plan-review", "sobrando", "--plan-json", fixtureDir + "plan_mixed.json"}},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			_, err := runCLI(t, "", tt.args...)
+			if err == nil {
+				t.Fatal("erro = nil, quero falha")
+			}
+			if got := exitCodeFor(err); got != 1 {
+				t.Errorf("código de saída = %d, quero 1", got)
+			}
+		})
+	}
+}
+
+func TestExitCodeForCancelamento(t *testing.T) {
+	if got := exitCodeFor(context.Canceled); got != 130 {
+		t.Errorf("exitCodeFor(context.Canceled) = %d, quero 130", got)
+	}
+}
+
+func TestComandosMostramHelpSemArgs(t *testing.T) {
+	for _, args := range [][]string{{}, {"terraform"}} {
+		out, err := runCLI(t, "", args...)
+		if err != nil {
+			t.Errorf("%v: erro = %v", args, err)
+		}
+		if !strings.Contains(out, "Usage:") {
+			t.Errorf("%v: não mostrou o help:\n%s", args, out)
+		}
+	}
+}
