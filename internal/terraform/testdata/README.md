@@ -12,6 +12,7 @@ fixtures não exige baixar provider nem credencial de nuvem.
 | `plan_mixed.json` | create, update, delete, replace e no-op no mesmo plano |
 | `plan_no_changes.json` | plano sem nenhuma mudança |
 | `plan_targeted_incomplete.json` | plano com `-target`, ou seja `complete: false` |
+| `plan_incomplete_destructive.json` | `complete: false` **e** com um delete, para checar a precedência dos códigos de saída |
 
 ## Como regenerar
 
@@ -59,6 +60,14 @@ Para o plano incompleto, altere qualquer recurso e planeje com `-target`:
 ```sh
 terraform plan -out=tf.plan -target=terraform_data.to_update
 terraform show -json tf.plan > plan_targeted_incomplete.json
+```
+
+Para o plano incompleto com destruição, remova `to_create` do `main.tf` e
+aponte o `-target` justamente para ele:
+
+```sh
+terraform plan -out=tf.plan -target=terraform_data.to_create
+terraform show -json tf.plan > plan_incomplete_destructive.json
 ```
 
 Os casos que o `terraform_data` não produz — `forget`, data sources e

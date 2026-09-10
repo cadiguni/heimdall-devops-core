@@ -65,7 +65,7 @@ func WriteTextReport(w io.Writer, r *PlanReview) error {
 		return err
 	}
 
-	if r.Incomplete != nil && *r.Incomplete {
+	if r.IsIncomplete() {
 		_, err := fmt.Fprintln(w, "\nAVISO: plano incompleto (uso de -target ou mudanças adiadas).\n"+
 			"Recursos fora do plano podem conter destruição não listada aqui.")
 		return err

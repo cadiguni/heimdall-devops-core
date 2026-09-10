@@ -69,6 +69,52 @@ func TestPlanReviewPlanoLimpoSaiCom0(t *testing.T) {
 	}
 }
 
+func TestPlanReviewSaiCom3QuandoPlanoIncompleto(t *testing.T) {
+	// A fixture com -target não tem nenhuma destrutiva: sem o gate de plano
+	// incompleto ela passaria como se estivesse tudo bem.
+	out, err := runCLI(t, "", "terraform", "plan-review", "--plan-json", fixtureDir+"plan_targeted_incomplete.json")
+
+	if got := exitCodeFor(err); got != exitCodeIncomplete {
+		t.Fatalf("código de saída = %d, quero %d (erro: %v)", got, exitCodeIncomplete, err)
+	}
+	if !strings.Contains(out, "plano incompleto") {
+		t.Errorf("relatório não avisou do plano incompleto:\n%s", out)
+	}
+}
+
+func TestPlanReviewFailOnIncompleteDesligado(t *testing.T) {
+	if _, err := runCLI(t, "",
+		"terraform", "plan-review",
+		"--plan-json", fixtureDir+"plan_targeted_incomplete.json",
+		"--fail-on-incomplete=false",
+	); err != nil {
+		t.Fatalf("erro = %v, quero nil com o gate desligado", err)
+	}
+}
+
+// Quando as duas condições valem, quem manda no código de saída é a destruição.
+func TestPlanReviewDestrutivaTemPrecedenciaSobreIncompleto(t *testing.T) {
+	_, err := runCLI(t, "", "terraform", "plan-review", "--plan-json", fixtureDir+"plan_incomplete_destructive.json")
+
+	if got := exitCodeFor(err); got != exitCodeDestructive {
+		t.Errorf("código de saída = %d, quero %d (destrutiva antes de incompleto)", got, exitCodeDestructive)
+	}
+}
+
+// Com --fail-on-destroy desligado, o plano incompleto ainda reprova por conta
+// própria — os dois gates são independentes.
+func TestPlanReviewIncompletoReprovaMesmoSemGateDeDestruicao(t *testing.T) {
+	_, err := runCLI(t, "",
+		"terraform", "plan-review",
+		"--plan-json", fixtureDir+"plan_incomplete_destructive.json",
+		"--fail-on-destroy=false",
+	)
+
+	if got := exitCodeFor(err); got != exitCodeIncomplete {
+		t.Errorf("código de saída = %d, quero %d", got, exitCodeIncomplete)
+	}
+}
+
 func TestPlanReviewSaidaJSON(t *testing.T) {
 	out, err := runCLI(t, "",
 		"terraform", "plan-review",

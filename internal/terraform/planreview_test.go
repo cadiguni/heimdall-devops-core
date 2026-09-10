@@ -102,6 +102,42 @@ func TestReviewPlanIncomplete(t *testing.T) {
 	}
 }
 
+func TestIsIncomplete(t *testing.T) {
+	sim, nao := true, false
+
+	tests := []struct {
+		name  string
+		field *bool
+		want  bool
+	}{
+		{"plano incompleto", &sim, true},
+		{"plano completo", &nao, false},
+		// Terraform < 1.8 não reporta o campo. "Não sei" não pode virar
+		// "está incompleto", senão a revisão reprova tudo nessas versões.
+		{"campo ausente", nil, false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			review := &PlanReview{Incomplete: tt.field}
+			if got := review.IsIncomplete(); got != tt.want {
+				t.Errorf("IsIncomplete() = %v, quero %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestReviewPlanIncompletoComDestruicao(t *testing.T) {
+	review := ReviewPlan(loadFixture(t, "plan_incomplete_destructive.json"))
+
+	if !review.IsIncomplete() {
+		t.Error("IsIncomplete() = false, quero true")
+	}
+	if !review.HasDestructive() {
+		t.Error("HasDestructive() = false, quero true")
+	}
+}
+
 func TestClassify(t *testing.T) {
 	tests := []struct {
 		name    string

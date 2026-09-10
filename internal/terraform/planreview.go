@@ -108,6 +108,16 @@ func (r *PlanReview) HasDestructive() bool {
 	return len(r.Destructive) > 0
 }
 
+// IsIncomplete informa se o plano comprovadamente não cobre toda a
+// configuração.
+//
+// Retorna false quando o Terraform não informou o campo (versões anteriores à
+// 1.8): "não sei" não é o mesmo que "está incompleto", e reprovar por
+// desconhecimento inutilizaria a revisão nessas versões.
+func (r *PlanReview) IsIncomplete() bool {
+	return r.Incomplete != nil && *r.Incomplete
+}
+
 // ParsePlanJSON lê a saída de `terraform show -json <planfile>`.
 //
 // A validação da versão de formato é feita pelo próprio terraform-json ao

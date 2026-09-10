@@ -11,15 +11,23 @@ import (
 	tfdoctor "github.com/cadiguni/heimdall-devops-core/internal/terraform"
 )
 
-// exitCodeDestructive é o código de saída quando o plano contém destruição e o
-// gate está ligado. Fica separado de 1 (erro de execução) para o pipeline poder
-// distinguir "revisão reprovou" de "o heimdall quebrou".
-const exitCodeDestructive = 2
+// Códigos de saída do plan-review. Ficam separados de 1 (erro de execução) para
+// o pipeline distinguir "a revisão reprovou" de "o heimdall quebrou", e
+// separados entre si para distinguir os dois motivos de reprovação.
+const (
+	// exitCodeDestructive: o plano destrói, recria ou esquece algum recurso.
+	exitCodeDestructive = 2
+
+	// exitCodeIncomplete: o plano não cobre toda a configuração, então a
+	// ausência de destruição não significa nada.
+	exitCodeIncomplete = 3
+)
 
 type planReviewOptions struct {
-	planJSON      string
-	output        string
-	failOnDestroy bool
+	planJSON         string
+	output           string
+	failOnDestroy    bool
+	failOnIncomplete bool
 }
 
 func newPlanReviewCmd(_ *globalFlags) *cobra.Command {
@@ -40,7 +48,16 @@ Para gerar a entrada:
   terraform show -json tf.plan > plan.json
   heimdall terraform plan-review --plan-json plan.json
 
-Códigos de saída: 0 sem destruição, 2 destruição encontrada, 1 erro.`,
+Códigos de saída:
+
+  0  nada a apontar
+  1  erro de execução
+  2  operação destrutiva encontrada
+  3  plano incompleto (uso de -target ou mudanças adiadas)
+
+Um plano incompleto reprova por padrão porque a destruição pode estar
+justamente no que ficou de fora dele. Planos gerados por Terraform anterior a
+1.8 não informam se estão completos, e nesses casos o código 3 nunca dispara.`,
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return runPlanReview(cmd, &opts)
@@ -50,6 +67,7 @@ Códigos de saída: 0 sem destruição, 2 destruição encontrada, 1 erro.`,
 	cmd.Flags().StringVar(&opts.planJSON, "plan-json", "", `arquivo JSON de 'terraform show -json' ("-" lê do stdin)`)
 	cmd.Flags().StringVarP(&opts.output, "output", "o", "text", "formato da saída: text ou json")
 	cmd.Flags().BoolVar(&opts.failOnDestroy, "fail-on-destroy", true, "sair com código 2 quando houver operação destrutiva")
+	cmd.Flags().BoolVar(&opts.failOnIncomplete, "fail-on-incomplete", true, "sair com código 3 quando o plano não cobrir toda a configuração")
 	cmd.MarkFlagRequired("plan-json")
 	cmd.MarkFlagFilename("plan-json", "json")
 
@@ -85,8 +103,19 @@ func runPlanReview(cmd *cobra.Command, opts *planReviewOptions) error {
 		return err
 	}
 
+	// Destrutiva tem precedência: quando as duas condições valem, o recurso que
+	// vai ser destruído é o achado mais acionável, e o relatório já avisa que o
+	// plano está incompleto.
 	if opts.failOnDestroy && review.HasDestructive() {
 		return &exitError{code: exitCodeDestructive}
+	}
+	if opts.failOnIncomplete && review.IsIncomplete() {
+		// Em texto o relatório já traz o aviso, mas em JSON a única pista é o
+		// campo "incomplete"; a mensagem no stderr explica o código 3 nos dois.
+		return &exitError{
+			code: exitCodeIncomplete,
+			msg:  "plano incompleto: a revisão não cobre toda a configuração",
+		}
 	}
 	return nil
 }
