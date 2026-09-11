@@ -52,5 +52,19 @@ templates de pipeline compartilhados, Variable Groups e recursos Azure.
 - `terraform states list` — lista states de um container Azure e o lock de
   cada um. Verificado contra um container real. O caminho de lock só tem
   teste unitário: não havia state travado na hora da verificação.
-- Pipeline Doctor — não começou. Depende de juntar logs reais de erro de
-  pipeline para as assinaturas valerem alguma coisa.
+- `pipeline diagnose` — reconhece falhas em log de pipeline e sugere correção.
+  Dez assinaturas, todas derivadas de um corpus de 11 falhas reais.
+
+## Sobre o catálogo de assinaturas
+- Assinatura só entra com log real por trás. Sem amostra, a mensagem e a
+  extração seriam chute — e um diagnóstico errado custa mais caro que nenhum.
+  É por isso que não existe assinatura de state lock preso: não há caso desses
+  no corpus.
+- Erro de consequência (`TerraformPlanFailed`, `failed with exit code 1`) não
+  vira assinatura: aparece em toda falha e não aponta causa.
+- Comando sugerido só é montado com dado extraído do log. Sem o endereço do
+  recurso, o achado sai sem comando — melhor nenhum comando que um `import`
+  com endereço adivinhado.
+- Log cru vai em `logs-raw/` (ignorado pelo git). Fixture em `testdata/` só
+  depois de higienizada, e a higienização precisa preservar a semântica do
+  caso (ver `internal/pipeline/testdata/README.md`).

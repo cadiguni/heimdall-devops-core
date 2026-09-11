@@ -116,6 +116,56 @@ no container ou na account. Quem normalmente usa access key pode não ter essa
 role atribuída ao próprio usuário; o sintoma é **403 na listagem**, não erro de
 login.
 
+### `pipeline diagnose`
+
+Lê um log de pipeline e aponta as falhas que reconhece, com causa provável e o
+que fazer. Quando o log traz dado suficiente, monta o comando de correção.
+
+```sh
+heimdall pipeline diagnose --log build.log
+terraform plan 2>&1 | heimdall pipeline diagnose --log -
+```
+
+```
+21 achado(s): 19 erro(s), 2 aviso(s)
+
+[erro] Recurso já existe no Azure, fora do state  (resource-already-exists)
+  Causa: O recurso existe no Azure mas o state não o conhece, então o Terraform
+  tenta criar de novo e o Azure recusa.
+  O que fazer: Importar o recurso para o state, ou remover do Azure antes de recriar.
+  Ocorrências (2):
+    linha 63: Error: a resource with the ID "/subscriptions/…" already exists…
+      address=azurerm_resource_group.rg[0]  resource_id=/subscriptions/…
+  Comandos sugeridos (confira antes de rodar):
+    terraform import 'azurerm_resource_group.rg[0]' '/subscriptions/…'
+```
+
+Ocorrências da mesma assinatura são agrupadas: seis variáveis não declaradas na
+mesma execução são um problema, não seis.
+
+O catálogo atual reconhece dez assinaturas, todas derivadas de falhas reais:
+
+| Assinatura | O que é |
+| --- | --- |
+| `resource-already-exists` | recurso existe no Azure, fora do state — gera o `terraform import` |
+| `undeclared-variable` | `-var` para variável que o módulo raiz não declara |
+| `provider-schema-mismatch` | código usa bloco/argumento que a versão do provider não tem |
+| `cdn-custom-domain-cname` | custom domain não destrói porque o CNAME ainda aponta |
+| `resource-group-not-found` | data source aponta para RG inexistente |
+| `azure-resource-not-found` | data source consultou recurso que não existe |
+| `parent-resource-not-found` | 404 `ParentResourceNotFound` |
+| `invalid-storage-account-name` | nome fora das regras do Azure — diz qual regra quebrou |
+| `missing-pipeline-input` | input obrigatório da task do Azure DevOps vazio |
+| `deprecated-argument` | aviso: vai virar erro no próximo major do provider |
+
+**Nada é executado.** Os comandos sugeridos são impressos para você conferir e
+rodar. E o comando sempre sai com 0 quando funciona: diagnosticar não é
+reprovar, então não há gate aqui.
+
+Erros que são só consequência (`TerraformPlanFailed`, `failed with exit code 1`)
+ficam fora do catálogo de propósito: aparecem em toda falha e não apontam para
+causa nenhuma.
+
 ## Desenvolvimento
 
 ```sh
@@ -144,10 +194,14 @@ acusa todo arquivo como mal formatado.
 | --- | --- |
 | `terraform plan-review` | funcionando, coberto por testes |
 | `terraform states list` | funcionando, verificado contra um container real com 57 states |
-| Pipeline Doctor | não começou |
+| `pipeline diagnose` | funcionando, 10 assinaturas cobrindo um corpus de 11 falhas reais |
 
-O caminho de lock do `states list` só foi exercitado por teste unitário: não
-havia nenhum state travado no momento da verificação. A leitura de metadata
-`terraformlockid` em um lock real continua por confirmar.
+Duas lacunas conhecidas:
+
+- A leitura da metadata `terraformlockid` do `states list` só tem teste
+  unitário. Na verificação contra um lease real o blob tinha sido travado por
+  fora do Terraform, então não havia metadata para ler.
+- O catálogo de assinaturas não cobre **state lock preso**. Não há nenhum caso
+  desses no corpus, e escrever a assinatura sem um log real seria chute.
 
 Convenções e princípios do projeto estão em [CLAUDE.MD](CLAUDE.MD).

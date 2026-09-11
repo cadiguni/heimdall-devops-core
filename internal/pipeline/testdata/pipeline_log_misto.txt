@@ -1,0 +1,255 @@
+também acontece de ser comentado esse recurso no código, pq a azure bloqueou a modificação e criação do CDN Classic, 
+
+# azurerm_cdn_profile.cdn will be destroyed
+  # (because azurerm_cdn_profile.cdn is not in configuration)
+  - resource "azurerm_cdn_profile" "cdn" {
+      - id                  = "/subscriptions/00000000-0000-0000-0000-000000000001/resourceGroups/appalpha-dev-rg/providers/Microsoft.Cdn/profiles/appalpha-dev-cdnp" -> null
+      - location            = "eastus" -> null
+      - name                = "appalpha-dev-cdnp" -> null
+      - resource_group_name = "appalpha-dev-rg" -> null
+      - sku                 = "Standard_Microsoft" -> null
+      - tags                = {
+          - "Responsável"  = "pessoa@example.com"
+          - "Setor"        = "Plataforma"
+        } -> null
+    }
+
+Plan: 0 to add, 0 to change, 3 to destroy.
+azurerm_cdn_endpoint_custom_domain.cd: Destroying... [id=/subscriptions/00000000-0000-0000-0000-000000000001/resourceGroups/appalpha-dev-rg/providers/Microsoft.Cdn/profiles/appalpha-dev-cdnp/endpoints/appalpha-dev-cdne/customDomains/appalpha-dev-cd]
+╷
+│ Warning: Argument is deprecated
+│ 
+│   with azurerm_storage_account.storage,
+│   on azurerm_storage.tf line 3, in resource "azurerm_storage_account" "storage":
+│    3: resource "azurerm_storage_account" "storage" {
+│ 
+│ this block has been deprecated and superseded by the
+│ `azurerm_storage_account_static_website` resource and will be removed in
+│ v5.0 of the AzureRM provider
+│ 
+│ (and 4 more similar warnings elsewhere)
+╵
+╷
+│ Error: deleting "Custom Domain: (Name \"appalpha-dev-cd\" / Endpoint Name \"appalpha-dev-cdne\" / Profile Name \"appalpha-dev-cdnp\" / Resource Group \"appalpha-dev-rg\")": cdn.CustomDomainsClient#Delete: Failure sending request: StatusCode=0 -- Original Error: autorest/azure: Service returned an error. Status=<nil> Code="Conflict" Message="Cannot delete custom domain \"pcl-appalpha-dev.example.com\" because it is still directly or indirectly (using \"cdnverify\" prefix) CNAMEd to CDN endpoint \"appalpha-dev-cdne.azureedge.net\". Please remove the DNS CNAME record and try again."
+│ 
+│ 
+╵
+Releasing state lock. This may take a few moments...
+
+##[error]Error: The process '/opt/hostedtoolcache/terraform/1.9.8/x64/terraform' failed with exit code 1
+Finishing: terraform apply
+
+
+Acquiring state lock. This may take a few moments...
+╷
+│ Error: Value for undeclared variable
+│ 
+│ A variable named "setor" was assigned on the command line, but the root
+│ module does not declare a variable of that name. To use this value, add a
+│ "variable" block to the configuration.
+╵
+##[warning]Can't find loc string for key: TerraformPlanFailed
+##[error]Error: TerraformPlanFailed 1
+Finishing: 📋 Terraform Plan
+
+
+Plan: 3 to add, 0 to change, 0 to destroy.
+
+Changes to Outputs:
+  + resource-group-name  = "appbeta-dev-rg"
+  + storage-account-name = "appbetadevstg"
+azurerm_resource_group.rg[0]: Creating...
+╷
+│ Error: a resource with the ID "/subscriptions/00000000-0000-0000-0000-000000000002/resourceGroups/appbeta-dev-rg" already exists - to be managed via Terraform this resource needs to be imported into the State. Please see the resource documentation for "azurerm_resource_group" for more information
+│ 
+│   with azurerm_resource_group.rg[0],
+│   on azurerm_resource_group.tf line 2, in resource "azurerm_resource_group" "rg":
+│    2: resource "azurerm_resource_group" "rg" {
+│ 
+╵
+##[error]Error: The process '/azp/_work/_tool/terraform/1.9.8/x64/terraform' failed with exit code 1
+Finishing: 🚀 Terraform Apply
+
+
+Acquiring state lock. This may take a few moments...
+data.azurerm_resource_group.rg[0]: Reading...
+data.azurerm_resource_group.frontdoorrg[0]: Reading...
+data.azurerm_resource_group.frontdoorrg[0]: Read complete after 1s [id=/subscriptions/00000000-0000-0000-0000-000000000003/resourceGroups/frontdoor-prod-rg]
+
+Planning failed. Terraform encountered an error while generating this plan.
+
+╷
+│ Warning: Argument is deprecated
+│ 
+│   with azurerm_storage_blob.storageblob,
+│   on azurerm_storage.tf line 5, in resource "azurerm_storage_blob" "storageblob":
+│    5:   storage_container_name = "$web"
+│ 
+│ `storage_container_name` has been deprecated in favour of
+│ `storage_container_id` and will be removed in v5.0 of the AzureRM Provider
+│ 
+│ (and one more similar warning elsewhere)
+╵
+╷
+│ Error: "Resource Group (Subscription: \"00000000-0000-0000-0000-000000000003\"\nResource Group Name: \"appgama-prod-rg\")" was not found
+│ 
+│   with data.azurerm_resource_group.rg[0],
+│   on azurerm_resource_group.tf line 10, in data "azurerm_resource_group" "rg":
+│   10: data "azurerm_resource_group" "rg" {
+│ 
+╵
+Releasing state lock. This may take a few moments...
+##[warning]Can't find loc string for key: TerraformPlanFailed
+##[error]Error: TerraformPlanFailed 1
+Finishing: 📋 Terraform Plan
+
+
+==============================================================================
+##[error]Error: Input required: backendServiceArm
+Finishing: 🔧 Terraform Init com Backend Azure
+
+
+Plan: 1 to add, 0 to change, 0 to destroy.
+╷
+│ Error: name ("aplicacaodemo01frontdevstg") can only consist of lowercase letters and numbers, and must be between 3 and 24 characters long
+│ 
+│   with azurerm_storage_account.storage,
+│   on azurerm_storage.tf line 4, in resource "azurerm_storage_account" "storage":
+│    4:   name                     = "${lower(local.aplicacao)}${var.ambiente}stg"
+│ 
+╵
+Releasing state lock. This may take a few moments...
+##[warning]Can't find loc string for key: TerraformPlanFailed
+##[error]Error: TerraformPlanFailed 1
+Finishing: 📋 Terraform Plan
+
+
+cquiring state lock. This may take a few moments...
+Releasing state lock. This may take a few moments...
+╷
+│ Error: Value for undeclared variable
+│ 
+│ A variable named "nameStorage" was assigned on the command line, but the
+│ root module does not declare a variable of that name. To use this value,
+│ add a "variable" block to the configuration.
+╵
+╷
+│ Error: Value for undeclared variable
+│ 
+│ A variable named "tipo" was assigned on the command line, but the root
+│ module does not declare a variable of that name. To use this value, add a
+│ "variable" block to the configuration.
+╵
+╷
+│ Error: Value for undeclared variable
+│ 
+│ A variable named "setor" was assigned on the command line, but the root
+│ module does not declare a variable of that name. To use this value, add a
+│ "variable" block to the configuration.
+╵
+╷
+│ Error: Value for undeclared variable
+│ 
+│ A variable named "responsavelDev" was assigned on the command line, but the
+│ root module does not declare a variable of that name. To use this value,
+│ add a "variable" block to the configuration.
+╵
+╷
+│ Error: Value for undeclared variable
+│ 
+│ A variable named "responsavelProd" was assigned on the command line, but
+│ the root module does not declare a variable of that name. To use this
+│ value, add a "variable" block to the configuration.
+╵
+╷
+│ Error: Value for undeclared variable
+│ 
+│ A variable named "componenteDeDominio" was assigned on the command line,
+│ but the root module does not declare a variable of that name. To use this
+│ value, add a "variable" block to the configuration.
+╵
+##[warning]Can't find loc string for key: TerraformPlanFailed
+##[error]Error: TerraformPlanFailed 1
+Finishing: 📋 Terraform Plan
+
+
+╷
+│ Error: Unsupported block type
+│ 
+│   on azurerm_storage.tf line 12, in resource "azurerm_storage_account" "storage":
+│   12:   static_website {
+│ 
+│ Blocks of type "static_website" are not expected here.
+╵
+╷
+│ Error: Missing required argument
+│ 
+│   on azurerm_storage.tf line 27, in resource "azurerm_storage_blob" "storageblob":
+│   27: resource "azurerm_storage_blob" "storageblob" {
+│ 
+│ The argument "storage_container_id" is required, but no definition was
+│ found.
+╵
+╷
+│ Error: Unsupported argument
+│ 
+│   on azurerm_storage.tf line 29, in resource "azurerm_storage_blob" "storageblob":
+│   29:   storage_account_name   = azurerm_storage_account.storage.name
+│ 
+│ An argument named "storage_account_name" is not expected here.
+╵
+╷
+│ Error: Unsupported argument
+│ 
+│   on azurerm_storage.tf line 30, in resource "azurerm_storage_blob" "storageblob":
+│   30:   storage_container_name = "$web"
+│ 
+│ An argument named "storage_container_name" is not expected here.
+╵
+##[error]Error: The process '/azp/_work/_tool/terraform/1.9.8/x64/terraform' failed with exit code 1
+Finishing: ✅ Terraform Validate
+
+
+ Error: retrieving Billing Features for Component (Subscription: "00000000-0000-0000-0000-000000000004"
+│ Resource Group Name: "aplicacaodemo01-dev-rg"
+│ Component Name: "aplicacaodemo01-dev-ai"): unexpected status 404 (404 Not Found) with error: ParentResourceNotFound: Failed to perform 'read' on resource(s) of type 'components/currentBillingFeatures', because the parent resource '/subscriptions/00000000-0000-0000-0000-000000000004/resourceGroups/aplicacaodemo01-dev-rg/providers/Microsoft.Insights/components/aplicacaodemo01-dev-ai' could not be found.
+│ 
+│   with azurerm_application_insights.appinsights,
+│   on azurerm_log_analytics_workspace.tf line 17, in resource "azurerm_application_insights" "appinsights":
+│   17: resource "azurerm_application_insights" "appinsights" {
+│ 
+
+
+Plan: 4 to add, 0 to change, 1 to destroy.
+azurerm_application_insights.appinsights: Destroying... [id=/subscriptions/00000000-0000-0000-0000-000000000004/resourceGroups/aplicacaodemo01-dev-rg/providers/Microsoft.Insights/components/aplicacaodemo01-dev-ai]
+azurerm_application_insights.appinsights: Destruction complete after 1s
+azurerm_log_analytics_workspace.loganalytics: Creating...
+╷
+│ Error: a resource with the ID "/subscriptions/00000000-0000-0000-0000-000000000004/resourceGroups/aplicacaodemo01-dev-rg/providers/Microsoft.OperationalInsights/workspaces/aplicacaodemo01-dev-law" already exists - to be managed via Terraform this resource needs to be imported into the State. Please see the resource documentation for "azurerm_log_analytics_workspace" for more information
+│ 
+│   with azurerm_log_analytics_workspace.loganalytics,
+│   on azurerm_log_analytics_workspace.tf line 1, in resource "azurerm_log_analytics_workspace" "loganalytics":
+│    1: resource "azurerm_log_analytics_workspace" "loganalytics" {
+│ 
+╵
+Releasing state lock. This may take a few moments...
+##[error]Error: The process '/azp/_work/_tool/terraform/1.9.8/x64
+
+
+╷
+│ Error: the Linux App Service (Subscription: "00000000-0000-0000-0000-000000000004"
+│ Resource Group Name: "aplicacaodemo01-dev-rg"
+│ Site Name: "aplicacaodemo01-dev-wa") was not found
+│ 
+│   with data.azurerm_linux_web_app.webapp_data,
+│   on azurerm_app_service.tf line 52, in data "azurerm_linux_web_app" "webapp_data":
+│   52: data "azurerm_linux_web_app" "webapp_data" {
+│ 
+│ the Linux App Service (Subscription: "00000000-0000-0000-0000-000000000004"
+│ Resource Group Name: "aplicacaodemo01-dev-rg"
+│ Site Name: "aplicacaodemo01-dev-wa") was not found
+╵
+Releasing state lock. This may take a few moments...
+##[error]Error: The process '/azp/_work/_tool/terraform/1.9.8/x64/terraform' failed with exit code 1
+Finishing: 🚀 Terraform Apply
+
