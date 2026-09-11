@@ -30,3 +30,8 @@ go.work.sum
 # Editor/IDE
 # .idea/
 # .vscode/
+
+# Logs crus de pipeline para análise. Podem conter subscription IDs, nomes de
+# recurso e secrets que vazaram no stdout — nada daqui entra em commit.
+# Fixtures derivadas destes logs vão para testdata/ já higienizadas.
+logs-raw/
