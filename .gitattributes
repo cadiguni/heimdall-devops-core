@@ -1,0 +1,13 @@
+# O conteúdo versionado é sempre LF.
+#
+# Sem isto, um clone em Windows com core.autocrlf=true deixa a cópia de
+# trabalho em CRLF, e o gofmt passa a acusar todo arquivo .go como mal
+# formatado mesmo com o commit correto.
+* text=auto eol=lf
+
+# Exceção: alguns hosts do Windows ainda esperam CRLF em PowerShell.
+*.ps1 text eol=crlf
+
+*.exe binary
+*.png binary
+*.jpg binary
