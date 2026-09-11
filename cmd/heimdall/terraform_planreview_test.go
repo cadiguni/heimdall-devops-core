@@ -5,8 +5,12 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
+	"io"
+	"io/fs"
 	"os"
 	"strings"
+	"syscall"
 	"testing"
 )
 
@@ -187,6 +191,49 @@ func TestPlanReviewErrosSaemCom1(t *testing.T) {
 			}
 		})
 	}
+}
+
+// 'heimdall ... | head' fecha o pipe antes do fim da saída. Isso não é falha:
+// quem lia recebeu o que queria.
+func TestExitCodeForPipeFechado(t *testing.T) {
+	casos := map[string]error{
+		"EPIPE":      syscall.EPIPE,
+		"embrulhado": fmt.Errorf("escrevendo relatório: %w", syscall.EPIPE),
+		"PathError":  &fs.PathError{Op: "write", Path: "/dev/stdout", Err: syscall.EPIPE},
+	}
+
+	for name, err := range casos {
+		t.Run(name, func(t *testing.T) {
+			if got := exitCodeFor(err); got != 0 {
+				t.Errorf("exitCodeFor = %d, quero 0", got)
+			}
+		})
+	}
+
+	if isBrokenPipe(errors.New("outro erro qualquer")) {
+		t.Error("isBrokenPipe classificou erro comum como pipe fechado")
+	}
+}
+
+// Com o pipe fechado o relatório sai truncado, mas o gate continua mandando no
+// código de saída — importante sob 'set -o pipefail'.
+func TestPlanReviewGateValeComPipeFechado(t *testing.T) {
+	cmd := newRootCmd()
+	cmd.SetArgs([]string{"terraform", "plan-review", "--plan-json", fixtureDir + "plan_mixed.json"})
+	cmd.SetOut(escritorComPipeFechado{})
+	cmd.SetErr(io.Discard)
+
+	err := cmd.ExecuteContext(context.Background())
+
+	if got := exitCodeFor(err); got != exitCodeDestructive {
+		t.Errorf("código de saída = %d, quero %d", got, exitCodeDestructive)
+	}
+}
+
+type escritorComPipeFechado struct{}
+
+func (escritorComPipeFechado) Write([]byte) (int, error) {
+	return 0, &fs.PathError{Op: "write", Path: "/dev/stdout", Err: syscall.EPIPE}
 }
 
 func TestExitCodeForCancelamento(t *testing.T) {

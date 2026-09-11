@@ -143,7 +143,11 @@ acusa todo arquivo como mal formatado.
 | Módulo | Situação |
 | --- | --- |
 | `terraform plan-review` | funcionando, coberto por testes |
-| `terraform states list` | lógica testada; o adapter do Azure ainda não foi exercitado contra um container real |
+| `terraform states list` | funcionando, verificado contra um container real com 57 states |
 | Pipeline Doctor | não começou |
+
+O caminho de lock do `states list` só foi exercitado por teste unitário: não
+havia nenhum state travado no momento da verificação. A leitura de metadata
+`terraformlockid` em um lock real continua por confirmar.
 
 Convenções e princípios do projeto estão em [CLAUDE.MD](CLAUDE.MD).

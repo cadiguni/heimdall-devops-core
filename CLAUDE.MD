@@ -50,7 +50,7 @@ templates de pipeline compartilhados, Variable Groups e recursos Azure.
 ## Estado atual
 - `terraform plan-review` — funcionando, coberto por testes.
 - `terraform states list` — lista states de um container Azure e o lock de
-  cada um. A classificação está testada com lister falso; o adapter do SDK
-  ainda não foi exercitado contra um container real.
+  cada um. Verificado contra um container real. O caminho de lock só tem
+  teste unitário: não havia state travado na hora da verificação.
 - Pipeline Doctor — não começou. Depende de juntar logs reais de erro de
   pipeline para as assinaturas valerem alguma coisa.

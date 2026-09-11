@@ -92,14 +92,10 @@ func runPlanReview(cmd *cobra.Command, opts *planReviewOptions) error {
 
 	review := tfdoctor.ReviewPlan(plan)
 
-	out := cmd.OutOrStdout()
-	if opts.output == "json" {
-		enc := json.NewEncoder(out)
-		enc.SetIndent("", "  ")
-		if err := enc.Encode(review); err != nil {
-			return err
-		}
-	} else if err := tfdoctor.WriteTextReport(out, review); err != nil {
+	// Um pipe fechado trunca o relatório mas não invalida a revisão, então o
+	// gate abaixo continua valendo: sob 'set -o pipefail' o código de saída
+	// precisa refletir o plano, não o 'head' que saiu antes.
+	if err := writeReview(cmd.OutOrStdout(), review, opts.output); err != nil && !isBrokenPipe(err) {
 		return err
 	}
 
@@ -118,6 +114,15 @@ func runPlanReview(cmd *cobra.Command, opts *planReviewOptions) error {
 		}
 	}
 	return nil
+}
+
+func writeReview(out io.Writer, review *tfdoctor.PlanReview, format string) error {
+	if format == "json" {
+		enc := json.NewEncoder(out)
+		enc.SetIndent("", "  ")
+		return enc.Encode(review)
+	}
+	return tfdoctor.WriteTextReport(out, review)
 }
 
 // openPlanInput abre o arquivo do plano, ou o stdin quando o caminho é "-".

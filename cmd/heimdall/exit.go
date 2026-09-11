@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"syscall"
 )
 
 // exitError permite a um subcomando escolher o código de saída do processo sem
@@ -24,9 +25,22 @@ func (e *exitError) Error() string {
 	return fmt.Sprintf("saída com código %d", e.code)
 }
 
+// isBrokenPipe informa se o erro é escrita em pipe já fechado, que é o que
+// acontece em 'heimdall ... | head': quem lia saiu antes do fim da saída.
+func isBrokenPipe(err error) bool {
+	return errors.Is(err, syscall.EPIPE) || isPlatformBrokenPipe(err)
+}
+
 // exitCodeFor traduz o erro final da execução em código de saída, imprimindo a
 // mensagem no stderr quando há algo a dizer ao usuário.
 func exitCodeFor(err error) int {
+	// Pipe fechado pelo leitor não é falha: 'heimdall ... | head' entregou o
+	// que foi pedido. Sai em silêncio, como qualquer ferramenta de linha de
+	// comando.
+	if isBrokenPipe(err) {
+		return 0
+	}
+
 	var exitErr *exitError
 	if errors.As(err, &exitErr) {
 		if exitErr.msg != "" {
