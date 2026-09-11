@@ -47,6 +47,35 @@ func TestContainerURL(t *testing.T) {
 	}
 }
 
+// A validação acontece antes de qualquer tentativa de credencial: errar o
+// parâmetro não deve custar uma ida ao Entra ID para descobrir.
+func TestNewContainerClientValidaParametros(t *testing.T) {
+	casos := map[string][2]string{
+		"sem account":   {"", "time1"},
+		"sem container": {"stterraform", ""},
+	}
+
+	for name, args := range casos {
+		t.Run(name, func(t *testing.T) {
+			client, err := NewContainerClient(args[0], args[1], "")
+			if err == nil {
+				t.Fatalf("erro = nil, quero falha (client=%v)", client)
+			}
+			if client != nil {
+				t.Errorf("client = %v, quero nil em caso de erro", client)
+			}
+		})
+	}
+}
+
+func TestContainerClientURL(t *testing.T) {
+	const url = "https://stfake.blob.core.windows.net/nap"
+
+	if got := (&ContainerClient{url: url}).URL(); got != url {
+		t.Errorf("URL() = %q, quero %q", got, url)
+	}
+}
+
 // O Azure trata nome de metadata como case-insensitive e não garante a
 // capitalização na resposta, então a chave do lock precisa ser normalizada.
 func TestNormalizeMetadata(t *testing.T) {
