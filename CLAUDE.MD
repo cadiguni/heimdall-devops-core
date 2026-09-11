@@ -7,9 +7,9 @@ templates de pipeline compartilhados, Variable Groups e recursos Azure.
 ## Arquitetura
 - `cmd/heimdall/` — entrypoint da CLI (Cobra)
 - `internal/core/` — lógica de negócio compartilhada, sem I/O direto
-- `internal/terraform/` — módulo Terraform Doctor (usa terraform-json; o
-  terraform-exec entra quando houver execução real de terraform, que ainda
-  não existe)
+- `internal/terraform/` — módulo Terraform Doctor. terraform-json para ler
+  plano, parser próprio para o arquivo de state (formato v4, que é outro), e
+  terraform-exec só no `import --apply`, atrás da interface `Importer`.
 - `internal/pipeline/` — módulo Pipeline Doctor
 - `internal/azure/` — integrações Azure SDK for Go, como adapters finos atrás
   de interfaces (`azure.BlobLister`), para o domínio ser testável sem nuvem
@@ -30,6 +30,8 @@ templates de pipeline compartilhados, Variable Groups e recursos Azure.
   cabeçalho contra o que está operando. Os states de dev, hml e prod só se
   distinguem pelo caminho.
 - MVP: `terraform plan-review` foi o primeiro módulo e está entregue.
+- O heimdall nunca roda `terraform init`. Reconfigurar backend de diretório de
+  trabalho alheio pode migrar state; o `init` é mostrado, nunca executado.
 
 ## Convenções
 - Go 1.24+, Cobra para subcomandos.
@@ -63,6 +65,10 @@ templates de pipeline compartilhados, Variable Groups e recursos Azure.
 - `terraform states show` — resume o que um state rastreia (serial, lineage,
   lista de recursos), sem imprimir valor de atributo. Verificado contra um
   state real.
+- `terraform import` — preflight (state existe, destravado, endereço livre) e
+  import com dry-run por padrão. O preflight foi verificado contra um state
+  real; o `--apply` tem teste de integração com terraform e backend local, mas
+  ainda não rodou contra um backend azurerm de verdade.
 - `pipeline diagnose` — reconhece falhas em log de pipeline e sugere correção.
   Dez assinaturas, todas derivadas de um corpus de 11 falhas reais.
 

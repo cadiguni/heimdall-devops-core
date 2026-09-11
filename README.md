@@ -176,6 +176,64 @@ no container ou na account. Quem normalmente usa access key pode não ter essa
 role atribuída ao próprio usuário; o sintoma é **403 na listagem**, não erro de
 login.
 
+### `terraform import`
+
+Importa um recurso existente no Azure para o state, depois de verificar que a
+operação tem chance de dar certo e que é no state pretendido.
+
+```sh
+heimdall terraform import azurerm_resource_group.rg \
+  /subscriptions/.../resourceGroups/app-dev-rg \
+  --account stterraform --container time1 --key dev/app.tfstate
+```
+
+```
+Alvo
+  container  https://stterraform.blob.core.windows.net/time1
+  state      dev/app.tfstate
+  ambiente   dev
+  endereço   azurerm_resource_group.rg
+  recurso    /subscriptions/.../resourceGroups/app-dev-rg
+
+Verificações
+  [ok  ] state existe: dev/app.tfstate, 85565 bytes
+  [ok  ] state destravado: sem lease ativo
+  [ok  ] endereço livre: azurerm_resource_group.rg não está no state
+  [ok  ] conteúdo do state: 27 recursos gerenciados, 1 data sources
+
+Dry-run: nada foi executado.
+```
+
+**Dry-run por padrão.** Sem `--apply`, só verifica e mostra os comandos
+equivalentes. As verificações vêm dos modos de falha reais:
+
+| Verificação | Por quê |
+| --- | --- |
+| state existe | se não existe, a chave do backend está errada |
+| state destravado | com lock ativo o import esperaria e estouraria |
+| endereço livre | se já está no state, import é a operação errada |
+| conteúdo do state | state vazio avisa: pode ser o backend errado |
+
+Reprovou, sai com código 2 e não sugere comando nenhum — sugerir seria convidar
+a contornar a checagem.
+
+**O `terraform init` nunca é executado pelo heimdall**, nem com `--apply`. O
+diretório (`--chdir`) precisa já estar inicializado contra o backend certo;
+reconfigurar backend de diretório alheio pode migrar state, e isso não cabe num
+comando cuja proposta é ser seguro. O `init` equivalente aparece no dry-run para
+você rodar.
+
+**Se você usa Git Bash ou MSYS**, prefixe com `MSYS_NO_PATHCONV=1`:
+
+```sh
+MSYS_NO_PATHCONV=1 heimdall terraform import azurerm_resource_group.rg /subscriptions/...
+```
+
+Esses shells convertem argumento iniciado em `/` para caminho do Windows, e todo
+id de recurso do Azure começa com `/subscriptions/` — o id chegaria como
+`C:/Program Files/Git/subscriptions/...`. O comando detecta e recusa com essa
+explicação, em vez de deixar o provider falhar sem dizer por quê.
+
 ### `pipeline diagnose`
 
 Lê um log de pipeline e aponta as falhas que reconhece, com causa provável e o
@@ -255,6 +313,7 @@ acusa todo arquivo como mal formatado.
 | `terraform plan-review` | funcionando, coberto por testes |
 | `terraform states list` | funcionando, verificado contra um container real com 57 states; aponta 4 tipos de irregularidade |
 | `terraform states show` | funcionando, verificado contra um state real de 27 recursos |
+| `terraform import` | preflight verificado contra state real; o `--apply` tem teste de integração com terraform e backend local, mas ainda não rodou contra o Azure |
 | `pipeline diagnose` | funcionando, 10 assinaturas cobrindo um corpus de 11 falhas reais |
 
 Duas lacunas conhecidas:
