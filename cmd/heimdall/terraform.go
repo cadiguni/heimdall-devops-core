@@ -17,6 +17,9 @@ Subcomandos disponíveis:
   plan-review  analisa a saída de 'terraform show -json' e destaca as
                operações destrutivas do plano
   states       lista os states de um container do Azure e o lock de cada um`,
+		// Sem NoArgs, um subcomando errado seria engolido como argumento e o
+		// erro sairia sobre a flag seguinte, escondendo a causa.
+		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return cmd.Help()
 		},

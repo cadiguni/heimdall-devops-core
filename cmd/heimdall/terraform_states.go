@@ -28,6 +28,9 @@ func newStatesCmd(gf *globalFlags) *cobra.Command {
 
 Somente leitura: lista blobs e lê metadata, sem baixar nem escrever state, e
 sem precisar de 'terraform init'.`,
+		// Sem NoArgs, um subcomando errado seria engolido como argumento e o
+		// erro sairia sobre a flag seguinte, escondendo a causa.
+		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return cmd.Help()
 		},

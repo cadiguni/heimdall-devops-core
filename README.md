@@ -15,12 +15,28 @@ são de leitura por padrão e explicitam contra o que estão operando.
 
 ## Build
 
+A partir do repositório clonado:
+
+```sh
+go install ./cmd/heimdall
+```
+
+Ou, para só gerar o binário no diretório atual:
+
 ```sh
 go build -o heimdall ./cmd/heimdall
 ```
 
+**Instale sempre do seu checkout, não do proxy.** Este repositório não tem tag
+de versão, então `go install github.com/cadiguni/heimdall-devops-core/cmd/heimdall@latest`
+não pega o commit mais novo do `main`: pega o último pseudo-version que o
+`proxy.golang.org` indexou, que fica atrás por um tempo depois de um push. O
+sintoma é um comando novo simplesmente não existir no binário instalado.
+
+Para conferir o que está instalado:
+
 ```sh
-go install github.com/cadiguni/heimdall-devops-core/cmd/heimdall@latest
+heimdall terraform states --help
 ```
 
 ## Comandos

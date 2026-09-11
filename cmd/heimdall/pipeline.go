@@ -21,6 +21,9 @@ func newPipelineCmd(gf *globalFlags) *cobra.Command {
 Subcomando disponível:
 
   diagnose  lê um log de pipeline e aponta as falhas que reconhece`,
+		// Sem NoArgs, um subcomando errado seria engolido como argumento e o
+		// erro sairia sobre a flag seguinte, escondendo a causa.
+		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return cmd.Help()
 		},

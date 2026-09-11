@@ -34,6 +34,7 @@ Toda operação potencialmente destrutiva roda em dry-run por padrão.`,
 	}
 
 	cmd.PersistentFlags().BoolVarP(&gf.verbose, "verbose", "v", false, "saída de diagnóstico detalhada")
+	cmd.SetFlagErrorFunc(flagErrorFunc)
 
 	cmd.AddCommand(newTerraformCmd(&gf))
 	cmd.AddCommand(newPipelineCmd(&gf))

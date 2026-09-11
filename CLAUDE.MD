@@ -44,6 +44,12 @@ templates de pipeline compartilhados, Variable Groups e recursos Azure.
   renderização.
 - Lógica de domínio em funções puras, sem I/O, pensando no
   `cmd/heimdall-server` futuro. Quem faz I/O recebe `io.Writer`/`context`.
+- Comando-grupo (que só agrupa subcomandos) precisa de `Args: cobra.NoArgs` e
+  o root instala `flagErrorFunc`: o cobra faz parse de flag antes de validar
+  argumento, então sem isso um subcomando errado vira erro sobre a flag
+  seguinte e esconde a causa.
+- Instalar sempre do checkout (`go install ./cmd/heimdall`). O `@latest` pega o
+  que o proxy.golang.org indexou, que fica atrás do `main` depois de um push.
 - Tudo versionado em LF (ver `.gitattributes`): com `core.autocrlf=true` no
   Windows o `gofmt` acusa todo arquivo como mal formatado.
 
