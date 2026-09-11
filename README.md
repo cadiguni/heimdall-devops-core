@@ -106,6 +106,50 @@ O comando lê os dois. Metadata de lock **sem** lease ativo é reportada como
 órfã, não como lock: o Terraform limpa a metadata ao destravar, então sobra
 costuma ser resquício de execução interrompida — não é caso de `force-unlock`.
 
+**Irregularidades.** A listagem também aponta states com nome ou tamanho
+suspeito, cada um deles normalmente um `terraform init` que criou state órfão
+em vez de usar o certo:
+
+| Irregularidade | O que é |
+| --- | --- |
+| `unexpanded-variable` | `$(…)` ou `${…}` sobrou no nome do blob |
+| `backend-key-prefix` | o `key=` do `-backend-config` virou parte do caminho |
+| `dangling-separator` | nome termina em `-` ou `_` antes da extensão |
+| `possibly-empty` | tamanho compatível com state sem recursos |
+
+O limite de `possibly-empty` é 300 bytes, e não é chute: um state v4 recém-criado
+sem recursos tem 181 bytes medidos, e um com dois recursos simples já passa de
+1500. Quem confirma é o `states show`.
+
+### `terraform states show`
+
+Baixa um state do container e resume o que ele rastreia.
+
+```sh
+heimdall terraform states show prod/app.tfstate --account stterraform --container time1
+```
+
+```
+State      finops/finopsplatform.tfstate
+Terraform  v1.9.3
+Serial     147
+Recursos   27 gerenciados, 1 data sources
+Outputs    cosmos_endpoint, function_app_name, servicebus_connection_string
+
+ENDEREÇO                                       PROVIDER
+azurerm_cosmosdb_account.finops                registry.terraform.io/hashicorp/azurerm
+azurerm_linux_function_app.finops              registry.terraform.io/hashicorp/azurerm
+```
+
+Endereços vêm remontados como o Terraform os escreve, incluindo prefixo de
+módulo e chave de `count`/`for_each` — prontos para colar em um `terraform
+import` ou `state mv`.
+
+**Imprime apenas endereço, tipo e provider, nunca valor de atributo.** Um state
+guarda atributos em texto puro, e senha e connection string moram ali. Dos
+outputs sai só o nome, pelo mesmo motivo — note no exemplo acima que existe um
+output chamado `servicebus_connection_string` cujo valor não é impresso.
+
 **Autenticação.** Usa `DefaultAzureCredential`, que resolve nesta ordem
 variáveis de ambiente, identidade gerenciada e a sessão do `az login`. Não há
 opção de access key de propósito: chave passada em flag vaza no histórico do
@@ -193,7 +237,8 @@ acusa todo arquivo como mal formatado.
 | Módulo | Situação |
 | --- | --- |
 | `terraform plan-review` | funcionando, coberto por testes |
-| `terraform states list` | funcionando, verificado contra um container real com 57 states |
+| `terraform states list` | funcionando, verificado contra um container real com 57 states; aponta 4 tipos de irregularidade |
+| `terraform states show` | funcionando, verificado contra um state real de 27 recursos |
 | `pipeline diagnose` | funcionando, 10 assinaturas cobrindo um corpus de 11 falhas reais |
 
 Duas lacunas conhecidas:

@@ -49,9 +49,14 @@ templates de pipeline compartilhados, Variable Groups e recursos Azure.
 
 ## Estado atual
 - `terraform plan-review` — funcionando, coberto por testes.
-- `terraform states list` — lista states de um container Azure e o lock de
-  cada um. Verificado contra um container real. O caminho de lock só tem
-  teste unitário: não havia state travado na hora da verificação.
+- `terraform states list` — lista states de um container Azure, o lock de cada
+  um e irregularidades de nome/tamanho. Verificado contra um container real.
+  A detecção de lease foi confirmada contra um lease real; a leitura da
+  metadata `terraformlockid` só tem teste unitário, porque o blob usado na
+  verificação tinha sido travado por fora do Terraform.
+- `terraform states show` — resume o que um state rastreia (serial, lineage,
+  lista de recursos), sem imprimir valor de atributo. Verificado contra um
+  state real.
 - `pipeline diagnose` — reconhece falhas em log de pipeline e sugere correção.
   Dez assinaturas, todas derivadas de um corpus de 11 falhas reais.
 

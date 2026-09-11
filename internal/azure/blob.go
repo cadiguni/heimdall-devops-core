@@ -3,6 +3,7 @@ package azure
 import (
 	"context"
 	"fmt"
+	"io"
 	"strings"
 	"time"
 
@@ -36,6 +37,11 @@ type Blob struct {
 // o adapter real é o único ponto que fala com a nuvem.
 type BlobLister interface {
 	ListBlobs(ctx context.Context, prefix string) ([]Blob, error)
+}
+
+// BlobDownloader lê o conteúdo de um blob. Quem chama fecha o ReadCloser.
+type BlobDownloader interface {
+	DownloadBlob(ctx context.Context, name string) (io.ReadCloser, error)
 }
 
 // ContainerClient lê um container de Blob Storage autenticando com a
@@ -119,6 +125,18 @@ func (c *ContainerClient) ListBlobs(ctx context.Context, prefix string) ([]Blob,
 	}
 
 	return blobs, nil
+}
+
+// DownloadBlob abre o conteúdo de um blob para leitura.
+//
+// É streaming: um state grande não precisa caber inteiro em memória de uma vez.
+// Quem chama fecha o ReadCloser.
+func (c *ContainerClient) DownloadBlob(ctx context.Context, name string) (io.ReadCloser, error) {
+	resp, err := c.client.NewBlobClient(name).DownloadStream(ctx, nil)
+	if err != nil {
+		return nil, fmt.Errorf("baixando %s de %s: %w", name, c.url, err)
+	}
+	return resp.Body, nil
 }
 
 func newBlob(item *container.BlobItem) Blob {

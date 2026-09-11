@@ -34,8 +34,84 @@ sem precisar de 'terraform init'.`,
 	}
 
 	cmd.AddCommand(newStatesListCmd(gf))
+	cmd.AddCommand(newStatesShowCmd(gf))
 
 	return cmd
+}
+
+type statesShowOptions struct {
+	account        string
+	container      string
+	endpointSuffix string
+	output         string
+}
+
+func newStatesShowCmd(_ *globalFlags) *cobra.Command {
+	opts := statesShowOptions{}
+
+	cmd := &cobra.Command{
+		Use:   "show <caminho>",
+		Short: "Mostra o que um state rastreia",
+		Long: `Baixa um arquivo de state do container e resume o que ele rastreia: serial,
+lineage, versão do Terraform e a lista de recursos.
+
+Responde "esse state está vazio?" e "qual state tem esse recurso?" sem rodar
+'terraform init' e sem precisar baixar o arquivo na mão.
+
+Somente leitura, e imprime apenas endereço, tipo e provider dos recursos —
+nunca valor de atributo. Um state guarda atributos em texto puro, e senha e
+connection string moram ali.
+
+Exemplo:
+
+  heimdall terraform states show prod/app.tfstate --account stterraform --container time1`,
+		Args: cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return runStatesShow(cmd, &opts, args[0])
+		},
+	}
+
+	cmd.Flags().StringVar(&opts.account, "account", "", "nome da storage account")
+	cmd.Flags().StringVar(&opts.container, "container", "", "nome do container")
+	cmd.Flags().StringVar(&opts.endpointSuffix, "endpoint-suffix", azurex.DefaultEndpointSuffix, "sufixo do endpoint (clouds soberanas usam outro)")
+	cmd.Flags().StringVarP(&opts.output, "output", "o", "text", "formato da saída: text ou json")
+	cmd.MarkFlagRequired("account")
+	cmd.MarkFlagRequired("container")
+
+	return cmd
+}
+
+func runStatesShow(cmd *cobra.Command, opts *statesShowOptions, path string) error {
+	if opts.output != "text" && opts.output != "json" {
+		return fmt.Errorf("formato de saída inválido: %q (use text ou json)", opts.output)
+	}
+
+	client, err := azurex.NewContainerClient(opts.account, opts.container, opts.endpointSuffix)
+	if err != nil {
+		return err
+	}
+
+	inspection, err := tfdoctor.InspectStateBlob(cmd.Context(), client, path)
+	if err != nil {
+		return err
+	}
+
+	out := cmd.OutOrStdout()
+	if opts.output == "json" {
+		inspection.Container = client.URL()
+		enc := json.NewEncoder(out)
+		enc.SetIndent("", "  ")
+		return enc.Encode(inspection)
+	}
+
+	// O container aparece antes do conteúdo: dev, hml e prod só se distinguem
+	// pelo caminho, e é barato deixar explícito de onde veio o que se olha.
+	// Em JSON ele vira campo, senão o cabeçalho quebraria o parse.
+	if _, err := fmt.Fprintf(out, "Container: %s\n", client.URL()); err != nil {
+		return err
+	}
+
+	return tfdoctor.WriteStateReport(out, inspection)
 }
 
 func newStatesListCmd(_ *globalFlags) *cobra.Command {

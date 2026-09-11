@@ -70,6 +70,9 @@ type StateEntry struct {
 	// que não se resumem a travado/livre (breaking, broken).
 	LeaseState string `json:"lease_state,omitempty"`
 
+	// Anomalies são irregularidades detectadas no nome ou no tamanho do state.
+	Anomalies []Anomaly `json:"anomalies,omitempty"`
+
 	// LockInfo traz quem travou e desde quando, se a metadata for legível.
 	// É nil quando não há lock ou quando a metadata não pôde ser decodificada.
 	LockInfo *LockInfo `json:"lock_info,omitempty"`
@@ -134,7 +137,9 @@ func ListStates(ctx context.Context, lister azure.BlobLister, opts ListStatesOpt
 		if !opts.IncludeNonState && !looksLikeState(blob.Name) {
 			continue
 		}
-		inventory.States = append(inventory.States, newStateEntry(blob))
+		entry := newStateEntry(blob)
+		entry.Anomalies = detectAnomalies(entry)
+		inventory.States = append(inventory.States, entry)
 	}
 
 	// Ordena por ambiente e depois por caminho, que é como a pessoa procura:

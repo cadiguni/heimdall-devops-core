@@ -85,7 +85,10 @@ func writeLockDetails(w io.Writer, inv *StateInventory, now time.Time) error {
 		}
 	}
 
-	return writeStaleWarning(w, inv)
+	if err := writeStaleWarning(w, inv); err != nil {
+		return err
+	}
+	return writeAnomalies(w, inv)
 }
 
 // lockDetail descreve quem travou, sem inventar dado que não veio: parte da
@@ -113,6 +116,30 @@ func lockDetail(s StateEntry, now time.Time) string {
 		return ""
 	}
 	return " — " + strings.Join(parts, ", ")
+}
+
+// writeAnomalies lista os states com nome ou tamanho irregular. Cada um desses
+// costuma ser um 'terraform init' que criou state órfão em vez de usar o certo.
+func writeAnomalies(w io.Writer, inv *StateInventory) error {
+	anomalous := inv.Anomalous()
+	if len(anomalous) == 0 {
+		return nil
+	}
+
+	if _, err := fmt.Fprintf(w, "\nStates com irregularidade (%d)\n", len(anomalous)); err != nil {
+		return err
+	}
+	for _, s := range anomalous {
+		if _, err := fmt.Fprintf(w, "  %s\n", s.Path); err != nil {
+			return err
+		}
+		for _, a := range s.Anomalies {
+			if _, err := fmt.Fprintf(w, "    [%s] %s\n", a.Kind, a.Detail); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
 }
 
 func writeStaleWarning(w io.Writer, inv *StateInventory) error {

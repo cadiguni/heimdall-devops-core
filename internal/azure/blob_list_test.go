@@ -259,6 +259,46 @@ func TestListBlobsPropagaErroDoServico(t *testing.T) {
 	}
 }
 
+func TestDownloadBlob(t *testing.T) {
+	const conteudo = `{"version":4,"serial":7}`
+	transport := &fakeTransport{bodies: []string{conteudo}}
+
+	body, err := clientComFake(t, transport).DownloadBlob(context.Background(), "prod/app.tfstate")
+	if err != nil {
+		t.Fatalf("DownloadBlob: %v", err)
+	}
+	defer body.Close()
+
+	lido, err := io.ReadAll(body)
+	if err != nil {
+		t.Fatalf("lendo corpo: %v", err)
+	}
+	if string(lido) != conteudo {
+		t.Errorf("conteúdo = %q, quero %q", lido, conteudo)
+	}
+
+	// O caminho do blob precisa ir na URL, não em query.
+	if path := transport.requests[0].URL.Path; path != "/nap/prod/app.tfstate" {
+		t.Errorf("path = %q", path)
+	}
+}
+
+func TestDownloadBlobPropagaErro(t *testing.T) {
+	transport := &fakeTransport{
+		status: http.StatusNotFound,
+		bodies: []string{`<?xml version="1.0"?><Error><Code>BlobNotFound</Code></Error>`},
+	}
+
+	_, err := clientComFake(t, transport).DownloadBlob(context.Background(), "nao/existe.tfstate")
+
+	if err == nil {
+		t.Fatal("erro = nil, quero falha no 404")
+	}
+	if !strings.Contains(err.Error(), "nao/existe.tfstate") {
+		t.Errorf("erro não cita o blob pedido: %v", err)
+	}
+}
+
 func TestListBlobsRespeitaContextoCancelado(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()

@@ -73,3 +73,30 @@ terraform show -json tf.plan > plan_incomplete_destructive.json
 Os casos que o `terraform_data` não produz — `forget`, data sources e
 combinações de ações desconhecidas — são cobertos por planos montados em
 memória nos testes, não por fixtures.
+
+# Fixtures de state
+
+Arquivos `.tfstate` (formato v4), que é **outro formato** da saída de
+`terraform show -json`: o state bruto tem `version`/`serial`/`lineage` e
+`resources[].instances[]`, não `format_version`/`values`.
+
+| Arquivo | Conteúdo |
+| --- | --- |
+| `state_vazio.tfstate` | state recém-criado sem recursos — **181 bytes** |
+| `state_vazio_minimo.tfstate` | o mesmo, sem `check_results`, para o caso de state escrito por versão mais antiga |
+| `state_com_recursos.tfstate` | módulo, `count` e data source, que são os três casos que complicam a remontagem de endereço |
+
+Os 181 bytes do state vazio não são um número arbitrário: é o tamanho medido de
+um `terraform apply` sem nenhum recurso, e é o que fundamenta o limite de
+`emptyStateBytes` na detecção de state suspeito de estar vazio. No container
+real inspecionado havia oito states de 180 a 183 bytes.
+
+Para regenerar, em um diretório vazio:
+
+```sh
+echo '# sem recursos' > main.tf
+terraform init && terraform apply -auto-approve   # -> state_vazio.tfstate
+```
+
+E para o que tem recursos, um `main.tf` com um `terraform_data`, um segundo com
+`count = 2`, um `module` local e um `data "terraform_remote_state"`.
