@@ -1,0 +1,77 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: test (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      # Um sistema falhando não deve esconder o resultado do outro.
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          # A versão vem do go.mod: um lugar só para atualizar.
+          go-version-file: go.mod
+          cache: true
+
+      # O terraform é preciso para o teste de integração do 'import --apply'.
+      # Sem ele o teste se marca como skip e o caminho de escrita fica sem
+      # cobertura nenhuma no CI.
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_wrapper: false
+
+      - name: build
+        run: go build ./...
+
+      - name: vet
+        run: go vet ./...
+
+      # O repositório é versionado em LF (.gitattributes). Se o checkout no
+      # Windows vier em CRLF, este passo é o que denuncia.
+      - name: gofmt
+        shell: bash
+        run: |
+          arquivos=$(gofmt -l .)
+          if [ -n "$arquivos" ]; then
+            echo "Arquivos fora do gofmt:"
+            echo "$arquivos"
+            echo
+            gofmt -d .
+            exit 1
+          fi
+
+      # O detector de corrida no Windows depende de compilador C; rodar só no
+      # Linux evita depender disso, e uma corrida não seria específica de SO.
+      - name: test (com -race)
+        if: runner.os == 'Linux'
+        run: go test -race -count=1 ./...
+
+      - name: test
+        if: runner.os != 'Linux'
+        run: go test -count=1 ./...
+
+      # Confere que o teste de integração rodou de verdade em vez de pular por
+      # falta do terraform, que passaria despercebido como sucesso.
+      - name: o teste de integração com terraform não pode ser pulado
+        shell: bash
+        run: |
+          saida=$(go test ./internal/terraform/ -run TestExecImporterImportaDeVerdade -v -count=1)
+          echo "$saida"
+          if echo "$saida" | grep -q "SKIP"; then
+            echo "O teste de integração foi pulado: terraform não está disponível."
+            exit 1
+          fi

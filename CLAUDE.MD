@@ -34,7 +34,7 @@ templates de pipeline compartilhados, Variable Groups e recursos Azure.
   trabalho alheio pode migrar state; o `init` é mostrado, nunca executado.
 
 ## Convenções
-- Go 1.24+, Cobra para subcomandos.
+- Go 1.25+ (piso vem do Azure SDK e do terraform-exec), Cobra para subcomandos.
 - Testes com fixtures reais de `terraform show -json` em `testdata/`.
 - Scripts bash/PowerShell existentes podem ser chamados via `os/exec` como
   ponte temporária até o módulo Go equivalente estar pronto.

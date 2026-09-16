@@ -1,5 +1,7 @@
 # heimdall-devops-core
 
+[![CI](https://github.com/cadiguni/heimdall-devops-core/actions/workflows/ci.yml/badge.svg)](https://github.com/cadiguni/heimdall-devops-core/actions/workflows/ci.yml)
+
 CLI interna em Go para diagnóstico e correção de problemas de DevOps:
 Terraform, pipelines Azure DevOps e recursos Azure.
 
@@ -9,7 +11,7 @@ são de leitura por padrão e explicitam contra o que estão operando.
 
 ## Requisitos
 
-- Go 1.24 ou superior
+- Go 1.25 ou superior (exigido pelo Azure SDK e pelo terraform-exec)
 - `terraform` — só para gerar a entrada do `plan-review`
 - Azure CLI (`az`) autenticado — só para os comandos que leem o Azure
 
