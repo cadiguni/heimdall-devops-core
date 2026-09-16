@@ -21,6 +21,9 @@ const (
 	// exitCodeIncomplete: o plano não cobre toda a configuração, então a
 	// ausência de destruição não significa nada.
 	exitCodeIncomplete = 3
+
+	// exitCodeDrift: algum recurso mudou por fora do Terraform.
+	exitCodeDrift = 4
 )
 
 type planReviewOptions struct {
@@ -28,6 +31,7 @@ type planReviewOptions struct {
 	output           string
 	failOnDestroy    bool
 	failOnIncomplete bool
+	failOnDrift      bool
 }
 
 func newPlanReviewCmd(_ *globalFlags) *cobra.Command {
@@ -35,9 +39,10 @@ func newPlanReviewCmd(_ *globalFlags) *cobra.Command {
 
 	cmd := &cobra.Command{
 		Use:   "plan-review",
-		Short: "Revisa um plano do Terraform e destaca operações destrutivas",
-		Long: `Analisa a saída de 'terraform show -json' e reporta o resumo das mudanças
-e os recursos que serão destruídos, recriados ou removidos do state.
+		Short: "Revisa um plano do Terraform e destaca operações destrutivas e drift",
+		Long: `Analisa a saída de 'terraform show -json' e reporta o resumo das mudanças,
+os recursos que serão destruídos, recriados ou removidos do state, e o que
+mudou no provedor por fora do Terraform (drift).
 
 Somente leitura: não executa terraform, não toca no state e não imprime valores
 de atributos (portanto não vaza secrets do plano).
@@ -54,10 +59,14 @@ Códigos de saída:
   1  erro de execução
   2  operação destrutiva encontrada
   3  plano incompleto (uso de -target ou mudanças adiadas)
+  4  drift: algo mudou fora do Terraform (só com --fail-on-drift)
 
 Um plano incompleto reprova por padrão porque a destruição pode estar
 justamente no que ficou de fora dele. Planos gerados por Terraform anterior a
-1.8 não informam se estão completos, e nesses casos o código 3 nunca dispara.`,
+1.8 não informam se estão completos, e nesses casos o código 3 nunca dispara.
+
+Drift é relatado sempre, mas só reprova com --fail-on-drift: em time onde
+mexer no portal é rotina, reprovar por padrão inviabilizaria a revisão.`,
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return runPlanReview(cmd, &opts)
@@ -68,6 +77,7 @@ justamente no que ficou de fora dele. Planos gerados por Terraform anterior a
 	cmd.Flags().StringVarP(&opts.output, "output", "o", "text", "formato da saída: text ou json")
 	cmd.Flags().BoolVar(&opts.failOnDestroy, "fail-on-destroy", true, "sair com código 2 quando houver operação destrutiva")
 	cmd.Flags().BoolVar(&opts.failOnIncomplete, "fail-on-incomplete", true, "sair com código 3 quando o plano não cobrir toda a configuração")
+	cmd.Flags().BoolVar(&opts.failOnDrift, "fail-on-drift", false, "sair com código 4 quando algo tiver mudado fora do Terraform")
 	cmd.MarkFlagRequired("plan-json")
 	cmd.MarkFlagFilename("plan-json", "json")
 
@@ -111,6 +121,15 @@ func runPlanReview(cmd *cobra.Command, opts *planReviewOptions) error {
 		return &exitError{
 			code: exitCodeIncomplete,
 			msg:  "plano incompleto: a revisão não cobre toda a configuração",
+		}
+	}
+	// Drift fica por último na precedência e desligado por padrão: é achado,
+	// não reprovação. Em muitos times mexer no portal é rotina, e ligá-lo por
+	// padrão faria a revisão reprovar o dia inteiro.
+	if opts.failOnDrift && review.HasDrift() {
+		return &exitError{
+			code: exitCodeDrift,
+			msg:  "há recursos alterados fora do Terraform",
 		}
 	}
 	return nil

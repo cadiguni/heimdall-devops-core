@@ -253,3 +253,63 @@ func TestComandosMostramHelpSemArgs(t *testing.T) {
 		}
 	}
 }
+
+// Drift é achado, não reprovação: sem a flag, sai 0.
+func TestPlanReviewDriftNaoReprovaPorPadrao(t *testing.T) {
+	out, err := runCLI(t, "", "terraform", "plan-review", "--plan-json", fixtureDir+"plan_com_drift.json")
+
+	if err != nil {
+		t.Fatalf("erro = %v, quero nil sem --fail-on-drift", err)
+	}
+	// Mas continua sendo relatado.
+	if !strings.Contains(out, "Mudou fora do Terraform") {
+		t.Errorf("drift deveria aparecer no relatório mesmo sem o gate:\n%s", out)
+	}
+}
+
+func TestPlanReviewSaiCom4ComFailOnDrift(t *testing.T) {
+	_, err := runCLI(t, "",
+		"terraform", "plan-review",
+		"--plan-json", fixtureDir+"plan_com_drift.json",
+		"--fail-on-drift",
+	)
+
+	if got := exitCodeFor(err); got != exitCodeDrift {
+		t.Errorf("código de saída = %d, quero %d (erro: %v)", got, exitCodeDrift, err)
+	}
+}
+
+// Precedência: destrutiva (2) antes de incompleto (3) antes de drift (4).
+func TestPlanReviewDestrutivaTemPrecedenciaSobreDrift(t *testing.T) {
+	_, err := runCLI(t, "",
+		"terraform", "plan-review",
+		"--plan-json", fixtureDir+"plan_mixed.json",
+		"--fail-on-drift",
+	)
+
+	if got := exitCodeFor(err); got != exitCodeDestructive {
+		t.Errorf("código de saída = %d, quero %d", got, exitCodeDestructive)
+	}
+}
+
+func TestPlanReviewDriftNoJSON(t *testing.T) {
+	out, err := runCLI(t, "",
+		"terraform", "plan-review", "--plan-json", fixtureDir+"plan_com_drift.json", "-o", "json",
+	)
+	if err != nil {
+		t.Fatalf("erro = %v", err)
+	}
+
+	var review struct {
+		Drift []struct {
+			Address string `json:"address"`
+			Kind    string `json:"kind"`
+		} `json:"drift"`
+	}
+	if err := json.Unmarshal([]byte(out), &review); err != nil {
+		t.Fatalf("saída não é JSON válido: %v", err)
+	}
+	if len(review.Drift) != 1 || review.Drift[0].Kind != "delete" {
+		t.Errorf("drift no JSON = %+v", review.Drift)
+	}
+}

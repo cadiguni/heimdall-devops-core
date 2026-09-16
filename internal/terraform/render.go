@@ -65,6 +65,10 @@ func WriteTextReport(w io.Writer, r *PlanReview) error {
 		return err
 	}
 
+	if err := writeDrift(w, r); err != nil {
+		return err
+	}
+
 	if r.IsIncomplete() {
 		_, err := fmt.Fprintln(w, "\nAVISO: plano incompleto (uso de -target ou mudanças adiadas).\n"+
 			"Recursos fora do plano podem conter destruição não listada aqui.")
@@ -72,6 +76,47 @@ func WriteTextReport(w io.Writer, r *PlanReview) error {
 	}
 
 	return nil
+}
+
+// driftLabel descreve o que o refresh encontrou, em vez do que o plano vai
+// fazer: aqui a ação já aconteceu, por fora do Terraform.
+func driftLabel(k ChangeKind) string {
+	switch k {
+	case KindDelete:
+		return "sumiu"
+	case KindUpdate:
+		return "alterado"
+	case KindCreate:
+		return "apareceu"
+	case KindReplace:
+		return "recriado"
+	default:
+		return kindLabel(k)
+	}
+}
+
+// writeDrift lista o que mudou por fora do Terraform. Não é o que o plano vai
+// fazer — é o que já aconteceu sem passar por ele.
+func writeDrift(w io.Writer, r *PlanReview) error {
+	if !r.HasDrift() {
+		return nil
+	}
+
+	if _, err := fmt.Fprintf(w, "\nMudou fora do Terraform (%d)\n", len(r.Drift)); err != nil {
+		return err
+	}
+
+	tw := tabwriter.NewWriter(w, 0, 0, 2, ' ', 0)
+	for _, rc := range r.Drift {
+		fmt.Fprintf(tw, "  %s\t%s\n", driftLabel(rc.Kind), rc.Address)
+	}
+	if err := tw.Flush(); err != nil {
+		return err
+	}
+
+	_, err := fmt.Fprintln(w, "\nO apply vai reverter isso. Se a mudança manual era intencional,\n"+
+		"ela precisa entrar na configuração antes.")
+	return err
 }
 
 func writeDestructive(w io.Writer, r *PlanReview) error {

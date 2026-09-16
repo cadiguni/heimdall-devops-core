@@ -94,6 +94,14 @@ type PlanReview struct {
 	// destruído, recriado ou removido do state.
 	Destructive []ResourceChange `json:"destructive"`
 
+	// Drift lista o que mudou no provedor por fora do Terraform desde o último
+	// apply — alguém mexeu no portal, ou um recurso sumiu.
+	//
+	// É informação separada das mudanças planejadas: um plano pode não ter
+	// nenhuma operação destrutiva e mesmo assim estar prestes a desfazer uma
+	// alteração manual.
+	Drift []ResourceChange `json:"drift"`
+
 	// Incomplete indica que o Terraform não conseguiu planejar tudo (uso de
 	// -target, ou mudanças adiadas). Um plano incompleto não serve como gate:
 	// o que ficou de fora pode conter destruição.
@@ -106,6 +114,11 @@ type PlanReview struct {
 // HasDestructive informa se o plano destrói ou recria algo.
 func (r *PlanReview) HasDestructive() bool {
 	return len(r.Destructive) > 0
+}
+
+// HasDrift informa se algum recurso mudou por fora do Terraform.
+func (r *PlanReview) HasDrift() bool {
+	return len(r.Drift) > 0
 }
 
 // IsIncomplete informa se o plano comprovadamente não cobre toda a
@@ -140,6 +153,7 @@ func ReviewPlan(plan *tfjson.Plan) *PlanReview {
 		FormatVersion:    plan.FormatVersion,
 		Incomplete:       incompleteFlag(plan),
 		Destructive:      []ResourceChange{},
+		Drift:            collectDrift(plan.ResourceDrift),
 	}
 
 	for _, rc := range plan.ResourceChanges {
@@ -199,6 +213,46 @@ func ReviewPlan(plan *tfjson.Plan) *PlanReview {
 	})
 
 	return review
+}
+
+// collectDrift traduz o resource_drift do plano: o que o refresh encontrou
+// diferente do que o state registrava.
+//
+// Como no resto do módulo, só endereço, tipo e natureza da mudança saem daqui.
+// As entradas de drift carregam os valores dos atributos em before/after, com
+// os mesmos secrets que um plano comum carrega.
+func collectDrift(drifted []*tfjson.ResourceChange) []ResourceChange {
+	result := []ResourceChange{}
+
+	for _, rc := range drifted {
+		if rc == nil || rc.Change == nil {
+			continue
+		}
+		// Data source relido não é drift de infraestrutura.
+		if rc.Mode == tfjson.DataResourceMode {
+			continue
+		}
+
+		kind, known := classify(rc.Change.Actions)
+		if !known || kind == KindNoOp {
+			continue
+		}
+
+		result = append(result, ResourceChange{
+			Address:      rc.Address,
+			Type:         rc.Type,
+			Name:         rc.Name,
+			ProviderName: rc.ProviderName,
+			Kind:         kind,
+			Reason:       reasonText(rc.ActionReason),
+		})
+	}
+
+	sort.Slice(result, func(i, j int) bool {
+		return result[i].Address < result[j].Address
+	})
+
+	return result
 }
 
 // classify reduz a lista de ações do plano a um único ChangeKind. O segundo

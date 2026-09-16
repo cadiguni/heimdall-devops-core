@@ -43,7 +43,8 @@ templates de pipeline compartilhados, Variable Groups e recursos Azure.
 - Scripts bash/PowerShell existentes podem ser chamados via `os/exec` como
   ponte temporária até o módulo Go equivalente estar pronto.
 - Códigos de saída: 0 sucesso, 1 erro de execução, e de 2 em diante um motivo
-  específico de reprovação (2 destruição, 3 plano incompleto). Uma pipeline
+  específico de reprovação (2 destruição, 3 plano incompleto, 4 drift). Uma
+  pipeline
   precisa distinguir "a revisão reprovou" de "o heimdall quebrou".
 - Saída de texto em português; valores em JSON ficam em identificadores
   estáveis em inglês (`delete`, `replace`, `locked`), traduzidos só na
@@ -60,7 +61,8 @@ templates de pipeline compartilhados, Variable Groups e recursos Azure.
   Windows o `gofmt` acusa todo arquivo como mal formatado.
 
 ## Estado atual
-- `terraform plan-review` — funcionando, coberto por testes.
+- `terraform plan-review` — resumo, operações destrutivas e drift. Gates de
+  destruição e de plano incompleto ligados por padrão; o de drift desligado.
 - `terraform states list` — lista states de um container Azure, o lock de cada
   um e irregularidades de nome/tamanho. Verificado contra um container real.
   A detecção de lease foi confirmada contra um lease real; a leitura da
@@ -80,6 +82,34 @@ templates de pipeline compartilhados, Variable Groups e recursos Azure.
   o `--apply` tem teste de integração em backend local.
 - `pipeline diagnose` — reconhece falhas em log de pipeline e sugere correção.
   Dez assinaturas, todas derivadas de um corpus de 11 falhas reais.
+
+## Próximos módulos combinados
+
+### Variable Groups (Azure DevOps)
+- Autenticação por Entra ID, não por PAT — mesma razão de não haver access key
+  no módulo Azure.
+- Quem rodar precisa ter permissão na organização; o comando não contorna isso,
+  só reporta o erro de forma legível.
+- Um Variable Group **é** um repositório de secrets. Vale a mesma disciplina do
+  `states show`: listar nomes de variável, nunca valores, e marcar as que são
+  secretas sem revelar conteúdo.
+
+### Migração de recursos entre assinaturas
+Mover um resource group de uma assinatura para outra e acertar o tfstate na
+mesma operação. As complicações conhecidas, para desenhar em cima delas:
+
+- O ID do recurso carrega o GUID da assinatura. Depois do move, todo ID no
+  state está errado, não só o do RG — cada recurso dentro dele também.
+- Corrigir isso é `state rm` + `import` por recurso (nunca editar o state, por
+  princípio), e o import precisa do ID novo, que só existe depois do move.
+- Nem todo tipo de recurso suporta move entre assinaturas, e o Azure tem uma
+  ação de validação (`validateMoveResources`) que deveria ser o primeiro passo
+  do preflight.
+- O move é assíncrono e pode falhar parcialmente, deixando metade dos recursos
+  de cada lado — o comando precisa ser retomável, não atômico.
+- Armadilha mais séria: se o próprio storage account do backend estiver no RG
+  que está sendo movido, o backend some no meio da operação e não há state para
+  corrigir depois. O preflight precisa detectar esse caso e recusar.
 
 ## Sobre o catálogo de assinaturas
 - Assinatura só entra com log real por trás. Sem amostra, a mensagem e a

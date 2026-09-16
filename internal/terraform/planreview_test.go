@@ -102,6 +102,105 @@ func TestReviewPlanIncomplete(t *testing.T) {
 	}
 }
 
+// A fixture veio de um apply seguido de alteração do arquivo por fora do
+// Terraform: o provider local detecta o hash diferente e reporta o recurso
+// como sumido.
+func TestReviewPlanDrift(t *testing.T) {
+	review := ReviewPlan(loadFixture(t, "plan_com_drift.json"))
+
+	if !review.HasDrift() {
+		t.Fatal("HasDrift() = false, quero true")
+	}
+	if len(review.Drift) != 1 {
+		t.Fatalf("drift = %d, quero 1: %+v", len(review.Drift), review.Drift)
+	}
+
+	d := review.Drift[0]
+	if d.Address != "local_file.config" {
+		t.Errorf("endereço = %q", d.Address)
+	}
+	if d.Kind != KindDelete {
+		t.Errorf("Kind = %q, quero delete", d.Kind)
+	}
+
+	// Drift é separado das mudanças planejadas: aqui o plano só cria, não
+	// destrói nada.
+	if review.HasDestructive() {
+		t.Errorf("drift não pode virar operação destrutiva: %+v", review.Destructive)
+	}
+	if review.Summary.Create != 1 {
+		t.Errorf("resumo = %+v, quero 1 create", review.Summary)
+	}
+}
+
+// Plano sem drift precisa serializar drift como [] e não null.
+func TestReviewPlanSemDrift(t *testing.T) {
+	review := ReviewPlan(loadFixture(t, "plan_mixed.json"))
+
+	if review.HasDrift() {
+		t.Errorf("drift inesperado: %+v", review.Drift)
+	}
+	if review.Drift == nil {
+		t.Error("Drift = nil, quero slice vazio")
+	}
+}
+
+func TestCollectDriftIgnoraNoOpEDataSource(t *testing.T) {
+	plan := &tfjson.Plan{
+		FormatVersion: "1.2",
+		ResourceDrift: []*tfjson.ResourceChange{
+			managed("terraform_data.alterado", tfjson.ActionUpdate),
+			managed("terraform_data.igual", tfjson.ActionNoop),
+			{
+				Address: "data.azurerm_resource_group.rg",
+				Mode:    tfjson.DataResourceMode,
+				Change:  &tfjson.Change{Actions: tfjson.Actions{tfjson.ActionRead}},
+			},
+			nil,
+		},
+	}
+
+	drift := ReviewPlan(plan).Drift
+
+	if len(drift) != 1 {
+		t.Fatalf("drift = %+v, quero só o recurso alterado", drift)
+	}
+	if drift[0].Kind != KindUpdate {
+		t.Errorf("Kind = %q, quero update", drift[0].Kind)
+	}
+}
+
+// As entradas de drift carregam os valores dos atributos, com os mesmos
+// secrets de um plano comum.
+func TestDriftNaoVazaValoresDeAtributos(t *testing.T) {
+	const secret = "SENHA-NO-DRIFT"
+
+	change := managed("terraform_data.com_secret", tfjson.ActionUpdate)
+	change.Change.Before = map[string]interface{}{"password": secret}
+	change.Change.After = map[string]interface{}{"password": secret + "-alterada"}
+
+	review := ReviewPlan(&tfjson.Plan{
+		FormatVersion: "1.2",
+		ResourceDrift: []*tfjson.ResourceChange{change},
+	})
+
+	asJSON, err := json.Marshal(review)
+	if err != nil {
+		t.Fatalf("serializando: %v", err)
+	}
+	if bytes.Contains(asJSON, []byte(secret)) {
+		t.Errorf("JSON contém valor de atributo: %s", asJSON)
+	}
+
+	var text bytes.Buffer
+	if err := WriteTextReport(&text, review); err != nil {
+		t.Fatalf("WriteTextReport: %v", err)
+	}
+	if strings.Contains(text.String(), secret) {
+		t.Errorf("texto contém valor de atributo:\n%s", text.String())
+	}
+}
+
 func TestIsIncomplete(t *testing.T) {
 	sim, nao := true, false
 

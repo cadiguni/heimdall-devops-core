@@ -100,3 +100,29 @@ terraform init && terraform apply -auto-approve   # -> state_vazio.tfstate
 
 E para o que tem recursos, um `main.tf` com um `terraform_data`, um segundo com
 `count = 2`, um `module` local e um `data "terraform_remote_state"`.
+
+## Fixture de drift
+
+`plan_com_drift.json` tem `resource_drift` preenchido: um `local_file` criado
+por um apply e depois alterado **por fora** do Terraform. O provider detecta o
+hash diferente e reporta o recurso como sumido.
+
+Para regenerar, com o provider `hashicorp/local`:
+
+```hcl
+resource "local_file" "config" {
+  filename = "${path.module}/saida/config.txt"
+  content  = "conteudo-original"
+}
+```
+
+```sh
+terraform init && terraform apply -auto-approve
+echo "alterado-por-fora" > saida/config.txt
+terraform plan -out=tf.plan
+terraform show -json tf.plan > plan_com_drift.json
+```
+
+Drift do tipo `update` (recurso existe mas com atributo diferente) não sai do
+`local_file`, que sempre reporta como sumido. Esse caso é coberto por plano
+montado em memória nos testes.

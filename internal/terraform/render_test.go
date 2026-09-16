@@ -83,3 +83,44 @@ func TestWriteTextReportPropagaErroDeEscrita(t *testing.T) {
 		t.Error("WriteTextReport não propagou o erro de escrita")
 	}
 }
+
+func TestWriteTextReportDrift(t *testing.T) {
+	out := renderFixture(t, "plan_com_drift.json")
+
+	for _, want := range []string{
+		"Mudou fora do Terraform (1)",
+		"sumiu",
+		"local_file.config",
+		// A consequência precisa estar dita: o apply desfaz a mudança manual.
+		"O apply vai reverter isso",
+	} {
+		if !strings.Contains(out, want) {
+			t.Errorf("saída não contém %q:\n%s", want, out)
+		}
+	}
+}
+
+func TestWriteTextReportSemDriftNaoMostraSecao(t *testing.T) {
+	out := renderFixture(t, "plan_mixed.json")
+
+	if strings.Contains(out, "Mudou fora do Terraform") {
+		t.Errorf("seção de drift apareceu sem drift:\n%s", out)
+	}
+}
+
+func TestDriftLabel(t *testing.T) {
+	// Drift descreve o que já aconteceu, não o que vai acontecer: "sumiu", e
+	// não "destruir".
+	tests := map[ChangeKind]string{
+		KindDelete:  "sumiu",
+		KindUpdate:  "alterado",
+		KindCreate:  "apareceu",
+		KindReplace: "recriado",
+	}
+
+	for kind, want := range tests {
+		if got := driftLabel(kind); got != want {
+			t.Errorf("driftLabel(%q) = %q, quero %q", kind, got, want)
+		}
+	}
+}

@@ -79,6 +79,7 @@ O plano também pode vir pelo stdin (`--plan-json -`), e a saída pode ser JSON
 | 1 | erro de execução — o heimdall falhou |
 | 2 | operação destrutiva encontrada |
 | 3 | plano incompleto (`-target` ou mudanças adiadas) |
+| 4 | drift, só com `--fail-on-drift` |
 
 O código 3 existe porque um plano que não cobre toda a configuração não serve
 como gate: a destruição pode estar justamente no que ficou de fora. Planos de
@@ -89,9 +90,30 @@ Os dois gates podem ser desligados com `--fail-on-destroy=false` e
 `--fail-on-incomplete=false`. Quando as duas condições valem ao mesmo tempo, a
 destruição tem precedência no código de saída.
 
+**Drift.** O JSON do plano traz duas coisas diferentes: o que o plano vai fazer
+e o que já mudou no provedor por fora do Terraform desde o último apply. A
+segunda aparece em seção própria:
+
+```
+Mudou fora do Terraform (1)
+  sumiu  azurerm_storage_account.stg
+
+O apply vai reverter isso. Se a mudança manual era intencional,
+ela precisa entrar na configuração antes.
+```
+
+É o que faz um plano surpreender: sem isso, um "update" na lista de mudanças
+parece rotina quando na verdade é o Terraform desfazendo algo que alguém mexeu
+no portal.
+
+Drift é relatado sempre, mas **só reprova com `--fail-on-drift`**, desligado
+por padrão — em time onde mexer no portal é rotina, reprovar por padrão
+inviabilizaria a revisão. Na precedência dos códigos de saída ele fica por
+último: destrutiva (2), depois plano incompleto (3), depois drift (4).
+
 **Nenhum valor de atributo é impresso** — só endereço, tipo e operação. Um
-plano real carrega senhas e referências de Key Vault em `before`/`after`, então
-a saída pode ir para o log de uma pipeline sem vazar secrets.
+plano real carrega senhas e referências de Key Vault em `before`/`after`, e as
+entradas de drift carregam os mesmos valores; nenhuma das duas sai na saída.
 
 ### `terraform states list`
 
