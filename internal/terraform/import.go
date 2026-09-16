@@ -22,8 +22,8 @@ const (
 	CheckFail CheckStatus = "fail"
 )
 
-// ImportCheck é uma verificação feita antes de importar.
-type ImportCheck struct {
+// Check é uma verificação de preflight, feita antes de mexer no state.
+type Check struct {
 	Name   string      `json:"name"`
 	Status CheckStatus `json:"status"`
 	Detail string      `json:"detail"`
@@ -40,7 +40,7 @@ type ImportPreflight struct {
 	Key         string `json:"key"`
 	Environment string `json:"environment,omitempty"`
 
-	Checks []ImportCheck `json:"checks"`
+	Checks []Check `json:"checks"`
 
 	// Commands são os comandos que seriam executados, com o backend já
 	// preenchido, para conferência ou para rodar à mão.
@@ -58,7 +58,7 @@ func (p *ImportPreflight) Blocked() bool {
 }
 
 func (p *ImportPreflight) add(name string, status CheckStatus, format string, args ...interface{}) {
-	p.Checks = append(p.Checks, ImportCheck{
+	p.Checks = append(p.Checks, Check{
 		Name:   name,
 		Status: status,
 		Detail: fmt.Sprintf(format, args...),
@@ -99,7 +99,7 @@ func PreflightImport(ctx context.Context, client StateClient, req ImportRequest)
 		Container:   req.ContainerURL,
 		Key:         req.Key,
 		Environment: environmentOf(req.Key),
-		Checks:      []ImportCheck{},
+		Checks:      []Check{},
 		Commands:    importCommands(req),
 	}
 

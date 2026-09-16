@@ -9,13 +9,17 @@ import (
 	"github.com/hashicorp/terraform-exec/tfexec"
 )
 
-// Importer executa o import de fato. A interface existe para o comando ser
-// testável sem invocar o terraform.
-type Importer interface {
+// Runner executa as operações que mexem no state de fato. A interface existe
+// para o comando ser testável sem invocar o terraform.
+type Runner interface {
 	Import(ctx context.Context, address, resourceID string) error
+	StateRm(ctx context.Context, address string) error
+	StateMv(ctx context.Context, source, destination string) error
 }
 
 // ExecImporter roda o terraform de verdade, no diretório de trabalho dado.
+//
+// Só executa operações de state: nunca init, nunca apply.
 type ExecImporter struct {
 	tf *tfexec.Terraform
 }
@@ -50,3 +54,24 @@ func (e *ExecImporter) Import(ctx context.Context, address, resourceID string) e
 	}
 	return nil
 }
+
+// StateRm tira o recurso do state. A infraestrutura no Azure continua
+// existindo — só deixa de ser rastreada.
+func (e *ExecImporter) StateRm(ctx context.Context, address string) error {
+	if err := e.tf.StateRm(ctx, address); err != nil {
+		return fmt.Errorf("terraform state rm falhou: %w", err)
+	}
+	return nil
+}
+
+// StateMv troca o endereço de um recurso dentro do mesmo state.
+func (e *ExecImporter) StateMv(ctx context.Context, source, destination string) error {
+	if err := e.tf.StateMv(ctx, source, destination); err != nil {
+		return fmt.Errorf("terraform state mv falhou: %w", err)
+	}
+	return nil
+}
+
+// verificação em tempo de compilação de que o executor real satisfaz a
+// interface usada pelos comandos.
+var _ Runner = (*ExecImporter)(nil)

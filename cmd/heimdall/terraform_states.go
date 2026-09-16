@@ -22,8 +22,10 @@ type statesListOptions struct {
 
 func newStatesCmd(gf *globalFlags) *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   "states",
-		Short: "Inspeciona os arquivos de state em um container do Azure",
+		Use: "states",
+		// Alias no singular porque o terraform chama de "terraform state rm".
+		Aliases: []string{"state"},
+		Short:   "Inspeciona os arquivos de state em um container do Azure",
 		Long: `Consulta os arquivos de state guardados em um container de Blob Storage.
 
 Somente leitura: lista blobs e lê metadata, sem baixar nem escrever state, e
@@ -38,6 +40,8 @@ sem precisar de 'terraform init'.`,
 
 	cmd.AddCommand(newStatesListCmd(gf))
 	cmd.AddCommand(newStatesShowCmd(gf))
+	cmd.AddCommand(newStatesRmCmd(gf))
+	cmd.AddCommand(newStatesMvCmd(gf))
 
 	return cmd
 }

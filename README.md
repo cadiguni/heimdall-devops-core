@@ -178,6 +178,45 @@ no container ou na account. Quem normalmente usa access key pode não ter essa
 role atribuída ao próprio usuário; o sintoma é **403 na listagem**, não erro de
 login.
 
+### `terraform states rm` e `states mv`
+
+Cirurgia de state: tirar um recurso do rastreamento, ou trocar seu endereço.
+Também aceitam `state` no singular, como o terraform escreve.
+
+```sh
+heimdall terraform state rm azurerm_resource_group.rg \
+  --account stterraform --container time1 --key dev/app.tfstate
+
+heimdall terraform state mv azurerm_storage_account.stg module.app.azurerm_storage_account.stg \
+  --account stterraform --container time1 --key dev/app.tfstate
+```
+
+```
+Verificações
+  [ok  ] state existe: finops/finopsplatform.tfstate, 85565 bytes
+  [ok  ] state destravado: sem lease ativo
+  [ok  ] endereço existe: azurerm_cosmosdb_sql_container.audit_logs está no state
+
+Sai do state (1)
+  azurerm_cosmosdb_sql_container.audit_logs  registry.terraform.io/hashicorp/azurerm
+
+Dry-run: nada foi executado.
+
+A infraestrutura no Azure continua existindo — só deixa de ser rastreada.
+```
+
+As verificações são o espelho das do `import`: lá o endereço precisa estar
+**livre**, aqui precisa **existir**. No `mv`, o destino é que precisa estar
+livre — mover para um endereço ocupado sobrescreveria o que estiver lá.
+
+**A lista "Sai do state" não é enfeite.** Um endereço sem índice atinge todas
+as instâncias de um `count` ou `for_each`: pedir `rm azurerm_subnet.sub` quando
+existem `sub["app"]` e `sub["db"]` tira as duas. O preflight avisa e lista
+cada uma antes de qualquer confirmação.
+
+Dry-run por padrão, `--apply` para executar, e reprovação sai com código 2 sem
+sugerir comando nenhum.
+
 ### `terraform import`
 
 Importa um recurso existente no Azure para o state, depois de verificar que a
@@ -316,6 +355,7 @@ acusa todo arquivo como mal formatado.
 | `terraform states list` | funcionando, verificado contra um container real com 57 states; aponta 4 tipos de irregularidade |
 | `terraform states show` | funcionando, verificado contra um state real de 27 recursos |
 | `terraform import` | preflight verificado contra state real; o `--apply` tem teste de integração com terraform e backend local, mas ainda não rodou contra o Azure |
+| `terraform states rm` / `mv` | preflight verificado contra state real; `--apply` com teste de integração em backend local |
 | `pipeline diagnose` | funcionando, 10 assinaturas cobrindo um corpus de 11 falhas reais |
 
 Duas lacunas conhecidas:

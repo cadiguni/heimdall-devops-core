@@ -92,6 +92,106 @@ func TestExecImporterPropagaFalhaDoTerraform(t *testing.T) {
 	}
 }
 
+// estadoDe lê o state do diretório de trabalho.
+func estadoDe(t *testing.T, dir string) *StateInspection {
+	t.Helper()
+
+	f, err := os.Open(filepath.Join(dir, "terraform.tfstate"))
+	if err != nil {
+		t.Fatalf("abrindo state: %v", err)
+	}
+	defer f.Close()
+
+	inspection, err := InspectState(f, "terraform.tfstate")
+	if err != nil {
+		t.Fatalf("InspectState: %v", err)
+	}
+	return inspection
+}
+
+func TestExecStateRmRemoveDeVerdade(t *testing.T) {
+	dir := terraformDir(t)
+
+	var stdout, stderr bytes.Buffer
+	runner, err := NewExecImporter(dir, &stdout, &stderr)
+	if err != nil {
+		t.Fatalf("NewExecImporter: %v", err)
+	}
+
+	if err := runner.Import(context.Background(), "terraform_data.importado", "abc-123"); err != nil {
+		t.Fatalf("Import: %v\n%s", err, stderr.String())
+	}
+	if n := estadoDe(t, dir).Managed; n != 1 {
+		t.Fatalf("recursos antes do rm = %d, quero 1", n)
+	}
+
+	if err := runner.StateRm(context.Background(), "terraform_data.importado"); err != nil {
+		t.Fatalf("StateRm: %v\n%s", err, stderr.String())
+	}
+
+	if n := estadoDe(t, dir).Managed; n != 0 {
+		t.Errorf("recursos depois do rm = %d, quero 0", n)
+	}
+}
+
+func TestExecStateMvTrocaOEndereco(t *testing.T) {
+	dir := terraformDir(t)
+
+	// O destino precisa existir na configuração, senão o terraform recusa.
+	main := `resource "terraform_data" "importado" {
+  input = "x"
+}
+
+resource "terraform_data" "renomeado" {
+  input = "x"
+}
+`
+	if err := os.WriteFile(filepath.Join(dir, "main.tf"), []byte(main), 0o600); err != nil {
+		t.Fatalf("reescrevendo main.tf: %v", err)
+	}
+
+	var stdout, stderr bytes.Buffer
+	runner, err := NewExecImporter(dir, &stdout, &stderr)
+	if err != nil {
+		t.Fatalf("NewExecImporter: %v", err)
+	}
+
+	if err := runner.Import(context.Background(), "terraform_data.importado", "abc-123"); err != nil {
+		t.Fatalf("Import: %v\n%s", err, stderr.String())
+	}
+
+	if err := runner.StateMv(context.Background(), "terraform_data.importado", "terraform_data.renomeado"); err != nil {
+		t.Fatalf("StateMv: %v\n%s", err, stderr.String())
+	}
+
+	inspection := estadoDe(t, dir)
+	if inspection.Managed != 1 {
+		t.Fatalf("recursos = %d, quero 1", inspection.Managed)
+	}
+	if addr := inspection.Resources[0].Address; addr != "terraform_data.renomeado" {
+		t.Errorf("endereço depois do mv = %q, quero terraform_data.renomeado", addr)
+	}
+}
+
+func TestExecStateRmPropagaFalhaDoTerraform(t *testing.T) {
+	dir := terraformDir(t)
+
+	var stdout, stderr bytes.Buffer
+	runner, err := NewExecImporter(dir, &stdout, &stderr)
+	if err != nil {
+		t.Fatalf("NewExecImporter: %v", err)
+	}
+
+	err = runner.StateRm(context.Background(), "terraform_data.nao_existe")
+
+	if err == nil {
+		t.Fatal("erro = nil, quero a falha do terraform")
+	}
+	if !strings.Contains(err.Error(), "terraform state rm falhou") {
+		t.Errorf("erro = %v", err)
+	}
+}
+
 func TestNewExecImporterDiretorioInexistente(t *testing.T) {
 	if _, err := exec.LookPath("terraform"); err != nil {
 		t.Skip("terraform não está no PATH")

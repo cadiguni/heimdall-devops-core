@@ -30,6 +30,10 @@ templates de pipeline compartilhados, Variable Groups e recursos Azure.
   cabeçalho contra o que está operando. Os states de dev, hml e prod só se
   distinguem pelo caminho.
 - MVP: `terraform plan-review` foi o primeiro módulo e está entregue.
+- Preflight bloqueado não imprime o comando equivalente: sugerir seria convidar
+  a contornar a verificação.
+- Existe um TOCTOU entre o preflight e o `--apply`: o state pode ser travado no
+  intervalo. Quem reclama nesse caso é o terraform, com a mensagem dele.
 - O heimdall nunca roda `terraform init`. Reconfigurar backend de diretório de
   trabalho alheio pode migrar state; o `init` é mostrado, nunca executado.
 
@@ -69,6 +73,11 @@ templates de pipeline compartilhados, Variable Groups e recursos Azure.
   import com dry-run por padrão. O preflight foi verificado contra um state
   real; o `--apply` tem teste de integração com terraform e backend local, mas
   ainda não rodou contra um backend azurerm de verdade.
+- `terraform states rm` e `states mv` — cirurgia de state com o mesmo padrão de
+  preflight do import, invertido: o endereço precisa existir, e no mv o destino
+  precisa estar livre. Lista as instâncias atingidas antes de confirmar, porque
+  endereço sem índice pega todo o count/for_each. Verificado contra state real;
+  o `--apply` tem teste de integração em backend local.
 - `pipeline diagnose` — reconhece falhas em log de pipeline e sugere correção.
   Dez assinaturas, todas derivadas de um corpus de 11 falhas reais.
 
