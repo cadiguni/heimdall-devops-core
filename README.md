@@ -376,6 +376,25 @@ backendKey         não
 Valores omitidos. Use --show-values para ver os das variáveis não secretas.
 ```
 
+**Segredo não marcado.** A listagem aponta variáveis cujo nome indica segredo
+mas que não estão marcadas como secretas:
+
+```
+21 variável(is) com nome de segredo sem estarem marcadas como secretas, em 13 grupo(s):
+  docker-gvdasa (2)
+  GVPushweb-Api-dev-GVdasa (3)
+  ...
+```
+
+A diferença é concreta: variável marcada como secreta o Azure DevOps mascara em
+log e não devolve pela API; não marcada, é legível por quem tem acesso ao grupo
+e aparece inteira em qualquer `echo`.
+
+É heurística sobre o nome, então erra para os dois lados e o relatório fala em
+suspeita, não em conclusão. Duas exclusões vieram de falsos positivos reais:
+`PublicKey` (chave pública existe para ser pública) e nomes com `expir`
+(`docker_expiration_pat` guarda a validade do PAT, não o PAT).
+
 **Valores não saem por padrão.** Um Variable Group é um repositório de
 segredos, e variável que ninguém marcou como secreta frequentemente guarda
 coisa que deveria ser. Revelar exige `--show-values`, e a saída avisa para não
@@ -427,7 +446,7 @@ acusa todo arquivo como mal formatado.
 | `terraform import` | preflight verificado contra state real; o `--apply` tem teste de integração com terraform e backend local, mas ainda não rodou contra o Azure |
 | `terraform states rm` / `mv` | preflight verificado contra state real; `--apply` com teste de integração em backend local |
 | `pipeline diagnose` | funcionando, 10 assinaturas cobrindo um corpus de 11 falhas reais |
-| `pipeline variables` | lista e detalha Variable Groups; ainda não rodou contra uma organização real |
+| `pipeline variables` | verificado contra uma organização real de 63 grupos; aponta segredo não marcado |
 
 Duas lacunas conhecidas:
 

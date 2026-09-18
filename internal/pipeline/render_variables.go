@@ -35,16 +35,59 @@ func WriteVariableGroups(w io.Writer, inv *VariableGroupInventory) error {
 	}
 
 	tw := tabwriter.NewWriter(w, 0, 0, 2, ' ', 0)
-	fmt.Fprintln(tw, "ID\tNOME\tTIPO\tVARIÁVEIS\tSECRETAS\tMODIFICADO (UTC)")
+	fmt.Fprintln(tw, "ID\tNOME\tTIPO\tVARIÁVEIS\tSECRETAS\tSUSPEITAS\tMODIFICADO (UTC)")
 	for _, g := range inv.Groups {
 		modificado := "-"
 		if !g.ModifiedOn.IsZero() {
 			modificado = g.ModifiedOn.UTC().Format("2006-01-02 15:04")
 		}
-		fmt.Fprintf(tw, "%d\t%s\t%s\t%d\t%d\t%s\n",
-			g.ID, g.Name, groupTypeLabel(g.Type), g.Total, g.Secrets, modificado)
+		suspeitas := "-"
+		if g.Unmarked > 0 {
+			suspeitas = fmt.Sprint(g.Unmarked)
+		}
+		fmt.Fprintf(tw, "%d\t%s\t%s\t%d\t%d\t%s\t%s\n",
+			g.ID, g.Name, groupTypeLabel(g.Type), g.Total, g.Secrets, suspeitas, modificado)
 	}
-	return tw.Flush()
+	if err := tw.Flush(); err != nil {
+		return err
+	}
+
+	return writeUnmarkedWarning(w, inv)
+}
+
+// writeUnmarkedWarning aponta os grupos com variável cujo nome indica segredo
+// sem estar marcada como secreta.
+//
+// Variável não marcada é legível por quem tem acesso ao grupo e aparece em log
+// de pipeline; marcada, o próprio Azure DevOps mascara.
+func writeUnmarkedWarning(w io.Writer, inv *VariableGroupInventory) error {
+	var afetados []VariableGroupSummary
+	total := 0
+	for _, g := range inv.Groups {
+		if g.Unmarked > 0 {
+			afetados = append(afetados, g)
+			total += g.Unmarked
+		}
+	}
+	if len(afetados) == 0 {
+		return nil
+	}
+
+	if _, err := fmt.Fprintf(w,
+		"\n%d variável(is) com nome de segredo sem estarem marcadas como secretas, em %d grupo(s):\n",
+		total, len(afetados)); err != nil {
+		return err
+	}
+	for _, g := range afetados {
+		if _, err := fmt.Fprintf(w, "  %s (%d)\n", g.Name, g.Unmarked); err != nil {
+			return err
+		}
+	}
+
+	_, err := fmt.Fprintln(w, "\nUse 'variables show <grupo>' para ver quais. É heurística sobre o nome:\n"+
+		"confirme antes de concluir. Variável marcada como secreta o Azure DevOps\n"+
+		"mascara em log; não marcada, não.")
+	return err
 }
 
 // WriteVariableGroupDetail escreve as variáveis de um grupo.
@@ -90,6 +133,9 @@ func WriteVariableGroupDetail(w io.Writer, d *VariableGroupDetail) error {
 		secreta := "não"
 		if v.Secret {
 			secreta = "SIM"
+		}
+		if v.LooksSecret {
+			secreta = "não  <- nome indica segredo"
 		}
 		if v.ReadOnly {
 			secreta += " (somente leitura)"

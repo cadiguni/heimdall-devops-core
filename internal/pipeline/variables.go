@@ -20,20 +20,28 @@ type Variable struct {
 	Name     string `json:"name"`
 	Secret   bool   `json:"secret"`
 	ReadOnly bool   `json:"read_only,omitempty"`
-	Value    string `json:"value,omitempty"`
+
+	// LooksSecret marca variável cujo nome indica segredo mas que não está
+	// marcada como secreta. Heurística sobre o nome, não sobre o conteúdo.
+	LooksSecret bool   `json:"looks_secret,omitempty"`
+	Value       string `json:"value,omitempty"`
 }
 
 // VariableGroupSummary descreve um grupo sem entrar nas variáveis.
 type VariableGroupSummary struct {
-	ID          int       `json:"id"`
-	Name        string    `json:"name"`
-	Type        string    `json:"type"`
-	Description string    `json:"description,omitempty"`
-	Shared      bool      `json:"shared,omitempty"`
-	Total       int       `json:"total"`
-	Secrets     int       `json:"secrets"`
-	ModifiedOn  time.Time `json:"modified_on,omitempty"`
-	ModifiedBy  string    `json:"modified_by,omitempty"`
+	ID          int    `json:"id"`
+	Name        string `json:"name"`
+	Type        string `json:"type"`
+	Description string `json:"description,omitempty"`
+	Shared      bool   `json:"shared,omitempty"`
+	Total       int    `json:"total"`
+	Secrets     int    `json:"secrets"`
+
+	// Unmarked conta variáveis cujo nome indica segredo sem estarem marcadas
+	// como secretas.
+	Unmarked   int       `json:"unmarked_secrets"`
+	ModifiedOn time.Time `json:"modified_on,omitempty"`
+	ModifiedBy string    `json:"modified_by,omitempty"`
 }
 
 // VariableGroupDetail é um grupo com a lista de variáveis.
@@ -116,9 +124,13 @@ func summarize(g azure.VariableGroup) VariableGroupSummary {
 		ModifiedBy:  g.ModifiedByName(),
 	}
 
-	for _, v := range g.Variables {
+	for name, v := range g.Variables {
 		if v.IsSecret {
 			summary.Secrets++
+			continue
+		}
+		if looksLikeSecret(name) {
+			summary.Unmarked++
 		}
 	}
 
@@ -137,6 +149,9 @@ func detail(g azure.VariableGroup, revealValues bool) *VariableGroupDetail {
 			Name:     name,
 			Secret:   v.IsSecret,
 			ReadOnly: v.IsReadOnly,
+			// Só faz sentido apontar o que não está marcado: variável já
+			// marcada como secreta está resolvida.
+			LooksSecret: !v.IsSecret && looksLikeSecret(name),
 		}
 		// Valor só sai com pedido explícito, e nunca de variável secreta —
 		// dessas a API devolve null de qualquer forma.

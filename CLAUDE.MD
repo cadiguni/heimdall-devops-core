@@ -84,7 +84,9 @@ templates de pipeline compartilhados, Variable Groups e recursos Azure.
   o `--apply` tem teste de integração em backend local.
 - `pipeline variables` — lista e detalha Variable Groups do Azure DevOps por
   Entra ID. Valores só com `--show-values`, e valor de secreta nunca, porque a
-  API devolve null. Ainda não rodou contra uma organização real.
+  API devolve null. Aponta variável cujo nome indica segredo sem estar marcada
+  como secreta. Verificado contra uma organização real de 63 grupos e 398
+  variáveis.
 - `pipeline diagnose` — reconhece falhas em log de pipeline e sugere correção.
   Dez assinaturas, todas derivadas de um corpus de 11 falhas reais.
 
@@ -96,6 +98,9 @@ templates de pipeline compartilhados, Variable Groups e recursos Azure.
   devolve `null` nessas, e o domínio também não copia caso isso mude.
 - Autenticação por Entra ID, nunca PAT — mesma razão de não haver access key no
   acesso ao Storage.
+- A heurística de "nome indica segredo" erra para os dois lados de propósito, e
+  o relatório fala em suspeita. As exclusões (`public`, `expir`) saíram de
+  falsos positivos reais, não de especulação.
 - Token sem o escopo certo faz o Azure DevOps responder HTTP 203 com a página
   de login em vez de 401, e o corpo decodifica em silêncio para lista vazia. O
   adapter reconhece esse status; sem isso, "sem permissão" apareceria como
