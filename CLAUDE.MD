@@ -106,6 +106,10 @@ templates de pipeline compartilhados, Variable Groups e recursos Azure.
   adapter reconhece esse status; sem isso, "sem permissão" apareceria como
   "nenhum Variable Group".
 
+## Próximos passos
+O planejamento vive em `ROADMAP.md`. Aqui ficam só as decisões de desenho já
+tomadas para o que ainda não existe.
+
 ## Próximos módulos combinados
 
 ### Migração de recursos entre assinaturas
