@@ -347,6 +347,54 @@ Erros que são só consequência (`TerraformPlanFailed`, `failed with exit code 
 ficam fora do catálogo de propósito: aparecem em toda falha e não apontam para
 causa nenhuma.
 
+### `pipeline variables`
+
+Inspeciona os Variable Groups de um projeto do Azure DevOps.
+
+```sh
+heimdall pipeline variables list --org minhaorg --project MeuProjeto
+heimdall pipeline variables show terraform-dev --org minhaorg --project MeuProjeto
+```
+
+```
+Projeto: https://dev.azure.com/minhaorg/MeuProjeto
+
+ID  NOME           TIPO       VARIÁVEIS  SECRETAS  MODIFICADO (UTC)
+7   cofre-prod     Key Vault  1          1         2026-08-01 09:30
+2   terraform-dev  comum      3          1         2026-09-10 11:00
+```
+
+```
+Variable Group  terraform-dev (id 2)
+Variáveis       3, sendo 1 secretas
+
+VARIÁVEL           SECRETA
+AMBIENTE           não
+ARM_CLIENT_SECRET  SIM
+backendKey         não
+
+Valores omitidos. Use --show-values para ver os das variáveis não secretas.
+```
+
+**Valores não saem por padrão.** Um Variable Group é um repositório de
+segredos, e variável que ninguém marcou como secreta frequentemente guarda
+coisa que deveria ser. Revelar exige `--show-values`, e a saída avisa para não
+mandar isso para log de pipeline.
+
+Mesmo com `--show-values`, valor de variável secreta nunca aparece — a API do
+Azure DevOps devolve `null` para essas, então não existe o que revelar. O
+comando não tem como vazar um segredo marcado como tal.
+
+**Autenticação por Entra ID**, a mesma dos comandos de Terraform: localmente
+basta `az login`. Não há opção de PAT, pelo mesmo motivo de não haver access
+key no acesso ao Storage — é segredo de longa duração que vaza em histórico de
+shell e em log.
+
+Quem roda precisa de acesso de leitura aos Variable Groups do projeto. Se o
+token não tiver o escopo certo, o Azure DevOps responde **HTTP 203 com a página
+de login** em vez de 401; o comando reconhece esse caso e explica, em vez de
+mostrar "nenhum Variable Group encontrado".
+
 ## Desenvolvimento
 
 ```sh
@@ -379,6 +427,7 @@ acusa todo arquivo como mal formatado.
 | `terraform import` | preflight verificado contra state real; o `--apply` tem teste de integração com terraform e backend local, mas ainda não rodou contra o Azure |
 | `terraform states rm` / `mv` | preflight verificado contra state real; `--apply` com teste de integração em backend local |
 | `pipeline diagnose` | funcionando, 10 assinaturas cobrindo um corpus de 11 falhas reais |
+| `pipeline variables` | lista e detalha Variable Groups; ainda não rodou contra uma organização real |
 
 Duas lacunas conhecidas:
 

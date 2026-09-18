@@ -18,9 +18,10 @@ func newPipelineCmd(gf *globalFlags) *cobra.Command {
 		Short:   "Diagnóstico de pipelines (Azure DevOps)",
 		Long: `Módulo Pipeline Doctor.
 
-Subcomando disponível:
+Subcomandos disponíveis:
 
-  diagnose  lê um log de pipeline e aponta as falhas que reconhece`,
+  diagnose   lê um log de pipeline e aponta as falhas que reconhece
+  variables  inspeciona os Variable Groups de um projeto`,
 		// Sem NoArgs, um subcomando errado seria engolido como argumento e o
 		// erro sairia sobre a flag seguinte, escondendo a causa.
 		Args: cobra.NoArgs,
@@ -30,6 +31,7 @@ Subcomando disponível:
 	}
 
 	cmd.AddCommand(newDiagnoseCmd(gf))
+	cmd.AddCommand(newVariablesCmd(gf))
 
 	return cmd
 }

@@ -11,8 +11,10 @@ templates de pipeline compartilhados, Variable Groups e recursos Azure.
   plano, parser próprio para o arquivo de state (formato v4, que é outro), e
   terraform-exec só no `import --apply`, atrás da interface `Importer`.
 - `internal/pipeline/` — módulo Pipeline Doctor
-- `internal/azure/` — integrações Azure SDK for Go, como adapters finos atrás
-  de interfaces (`azure.BlobLister`), para o domínio ser testável sem nuvem
+- `internal/azure/` — integrações com serviços Azure: o SDK for Go para Blob
+  Storage e a API REST do Azure DevOps. Adapters finos atrás de interfaces
+  (`azure.BlobLister`, `azure.VariableGroupLister`), para o domínio ser
+  testável sem nuvem.
 - Futuro: `cmd/heimdall-server/` reaproveitando os mesmos pacotes `internal/`
   para expor um portal via HTTP.
 
@@ -43,9 +45,9 @@ templates de pipeline compartilhados, Variable Groups e recursos Azure.
 - Scripts bash/PowerShell existentes podem ser chamados via `os/exec` como
   ponte temporária até o módulo Go equivalente estar pronto.
 - Códigos de saída: 0 sucesso, 1 erro de execução, e de 2 em diante um motivo
-  específico de reprovação (2 destruição, 3 plano incompleto, 4 drift). Uma
-  pipeline
-  precisa distinguir "a revisão reprovou" de "o heimdall quebrou".
+  específico de reprovação (2 destruição ou preflight bloqueado, 3 plano
+  incompleto, 4 drift). Uma pipeline precisa distinguir "a revisão reprovou"
+  de "o heimdall quebrou".
 - Saída de texto em português; valores em JSON ficam em identificadores
   estáveis em inglês (`delete`, `replace`, `locked`), traduzidos só na
   renderização.
@@ -80,19 +82,26 @@ templates de pipeline compartilhados, Variable Groups e recursos Azure.
   precisa estar livre. Lista as instâncias atingidas antes de confirmar, porque
   endereço sem índice pega todo o count/for_each. Verificado contra state real;
   o `--apply` tem teste de integração em backend local.
+- `pipeline variables` — lista e detalha Variable Groups do Azure DevOps por
+  Entra ID. Valores só com `--show-values`, e valor de secreta nunca, porque a
+  API devolve null. Ainda não rodou contra uma organização real.
 - `pipeline diagnose` — reconhece falhas em log de pipeline e sugere correção.
   Dez assinaturas, todas derivadas de um corpus de 11 falhas reais.
 
-## Próximos módulos combinados
+## Sobre segredos em Variable Groups
+- Valor de variável só sai com `--show-values`, nunca por padrão: variável que
+  ninguém marcou como secreta guarda segredo o tempo todo, e a saída de um
+  comando acaba em log de pipeline.
+- Valor de variável secreta nunca sai, nem com a flag. A API do Azure DevOps
+  devolve `null` nessas, e o domínio também não copia caso isso mude.
+- Autenticação por Entra ID, nunca PAT — mesma razão de não haver access key no
+  acesso ao Storage.
+- Token sem o escopo certo faz o Azure DevOps responder HTTP 203 com a página
+  de login em vez de 401, e o corpo decodifica em silêncio para lista vazia. O
+  adapter reconhece esse status; sem isso, "sem permissão" apareceria como
+  "nenhum Variable Group".
 
-### Variable Groups (Azure DevOps)
-- Autenticação por Entra ID, não por PAT — mesma razão de não haver access key
-  no módulo Azure.
-- Quem rodar precisa ter permissão na organização; o comando não contorna isso,
-  só reporta o erro de forma legível.
-- Um Variable Group **é** um repositório de secrets. Vale a mesma disciplina do
-  `states show`: listar nomes de variável, nunca valores, e marcar as que são
-  secretas sem revelar conteúdo.
+## Próximos módulos combinados
 
 ### Migração de recursos entre assinaturas
 Mover um resource group de uma assinatura para outra e acertar o tfstate na
