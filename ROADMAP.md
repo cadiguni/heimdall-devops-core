@@ -14,6 +14,7 @@ ideia.
 | `terraform import` | state real (preflight); backend local (`--apply`) |
 | `pipeline diagnose` | corpus de 11 falhas reais |
 | `pipeline variables` | organização real, 63 grupos e 398 variáveis |
+| perfis de configuração | `--profile` verificado contra o container e a organização reais |
 
 ## Usar antes de construir
 
@@ -32,18 +33,6 @@ código. Valem mais do que qualquer item abaixo.
   que não resolveu.
 
 ## Próximo
-
-### Perfis de configuração
-Todo comando repete `--account --container --key` ou `--org --project`. Um
-arquivo no repositório (sem segredo nenhum) mapeando nome → backend resolveria:
-
-```sh
-heimdall terraform states list --profile time1-dev
-```
-
-É o item mais barato da lista e o que mais reduz atrito no uso diário. Também
-diminui a chance do acidente que o projeto inteiro tenta evitar: digitar o
-ambiente errado.
 
 ### `pipeline connections` — validade de service connection e PAT
 **Veio de achado real.** A organização tem seis grupos
@@ -83,7 +72,8 @@ Um comando que junta o que os outros fazem: recebe um log de pipeline, roda o
 preflight contra o state. Hoje o `diagnose` monta o comando mas não sabe contra
 qual backend rodá-lo.
 
-Depende dos perfis de configuração para saber qual backend é qual.
+Agora que os perfis existem, ele tem como saber qual backend é qual: bastaria
+um `--profile` no diagnose.
 
 ### `cmd/heimdall-server`
 O portal HTTP previsto na arquitetura. A lógica de domínio já está em funções

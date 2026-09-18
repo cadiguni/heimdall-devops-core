@@ -6,7 +6,9 @@ templates de pipeline compartilhados, Variable Groups e recursos Azure.
 
 ## Arquitetura
 - `cmd/heimdall/` — entrypoint da CLI (Cobra)
-- `internal/core/` — lógica de negócio compartilhada, sem I/O direto
+- `internal/core/` — lógica compartilhada entre os módulos, sem I/O direto.
+  Hoje: perfis de configuração (parsing recebe `io.Reader`; achar o arquivo é
+  responsabilidade do `cmd`).
 - `internal/terraform/` — módulo Terraform Doctor. terraform-json para ler
   plano, parser próprio para o arquivo de state (formato v4, que é outro), e
   terraform-exec só no `import --apply`, atrás da interface `Importer`.
@@ -53,6 +55,12 @@ templates de pipeline compartilhados, Variable Groups e recursos Azure.
   renderização.
 - Lógica de domínio em funções puras, sem I/O, pensando no
   `cmd/heimdall-server` futuro. Quem faz I/O recebe `io.Writer`/`context`.
+- Nenhuma flag de alvo é `MarkFlagRequired`: a validação do cobra roda antes do
+  RunE, ou seja antes de o `--profile` ter chance de preencher. Quem valida é o
+  `core`, depois da resolução, citando a flag que falta e lembrando do perfil.
+- O arquivo de perfis nunca guarda segredo, e é decodificado com
+  `KnownFields(true)` para recusar campo desconhecido — inclusive tentativa de
+  colocar chave de acesso ali.
 - Comando-grupo (que só agrupa subcomandos) precisa de `Args: cobra.NoArgs` e
   o root instala `flagErrorFunc`: o cobra faz parse de flag antes de validar
   argumento, então sem isso um subcomando errado vira erro sobre a flag

@@ -1,7 +1,6 @@
 package main
 
 import (
-	"encoding/json"
 	"fmt"
 
 	"github.com/spf13/cobra"
@@ -11,9 +10,7 @@ import (
 )
 
 type stateOpOptions struct {
-	account        string
-	container      string
-	key            string
+	targetOptions
 	endpointSuffix string
 	chdir          string
 	apply          bool
@@ -21,16 +18,12 @@ type stateOpOptions struct {
 }
 
 func (o *stateOpOptions) bind(cmd *cobra.Command) {
-	cmd.Flags().StringVar(&o.account, "account", "", "nome da storage account")
-	cmd.Flags().StringVar(&o.container, "container", "", "nome do container")
-	cmd.Flags().StringVar(&o.key, "key", "", "caminho do state dentro do container, ex.: dev/app.tfstate")
-	cmd.Flags().StringVar(&o.endpointSuffix, "endpoint-suffix", azurex.DefaultEndpointSuffix, "sufixo do endpoint (clouds soberanas usam outro)")
+	o.bindBackend(cmd)
+	o.bindKey(cmd)
+	bindEndpointSuffix(cmd, &o.endpointSuffix)
 	cmd.Flags().StringVar(&o.chdir, "chdir", ".", "diretório do módulo Terraform, já inicializado")
 	cmd.Flags().BoolVar(&o.apply, "apply", false, "executa de verdade (sem isto é dry-run)")
-	cmd.Flags().StringVarP(&o.output, "output", "o", "text", "formato da saída: text ou json")
-	cmd.MarkFlagRequired("account")
-	cmd.MarkFlagRequired("container")
-	cmd.MarkFlagRequired("key")
+	bindOutput(cmd, &o.output)
 }
 
 func newStatesRmCmd(_ *globalFlags) *cobra.Command {
@@ -100,21 +93,26 @@ Exemplo:
 }
 
 func runStateOp(cmd *cobra.Command, opts *stateOpOptions, req tfdoctor.StateOpRequest) error {
-	if opts.output != "text" && opts.output != "json" {
-		return fmt.Errorf("formato de saída inválido: %q (use text ou json)", opts.output)
+	if err := validateOutput(opts.output); err != nil {
+		return err
 	}
 	if opts.output == "json" && opts.apply {
 		return fmt.Errorf("--output json não combina com --apply: a saída do terraform não é JSON")
 	}
 
-	client, err := azurex.NewContainerClient(opts.account, opts.container, opts.endpointSuffix)
+	backend, err := opts.resolveBackend(true)
 	if err != nil {
 		return err
 	}
 
-	req.Account = opts.account
-	req.Container = opts.container
-	req.Key = opts.key
+	client, err := azurex.NewContainerClient(backend.Account, backend.Container, opts.endpointSuffix)
+	if err != nil {
+		return err
+	}
+
+	req.Account = backend.Account
+	req.Container = backend.Container
+	req.Key = backend.Key
 	req.ContainerURL = client.URL()
 
 	preflight, err := tfdoctor.PreflightStateOp(cmd.Context(), client, req)
@@ -124,9 +122,7 @@ func runStateOp(cmd *cobra.Command, opts *stateOpOptions, req tfdoctor.StateOpRe
 
 	out := cmd.OutOrStdout()
 	if opts.output == "json" {
-		enc := json.NewEncoder(out)
-		enc.SetIndent("", "  ")
-		if err := enc.Encode(preflight); err != nil {
+		if err := encodeJSON(out, preflight); err != nil {
 			return err
 		}
 		if preflight.Blocked() {

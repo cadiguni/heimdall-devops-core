@@ -41,6 +41,43 @@ Para conferir o que está instalado:
 heimdall terraform states --help
 ```
 
+## Perfis
+
+Todo comando que fala com o Azure precisa saber contra o quê. Em vez de repetir
+`--account --container --key` ou `--org --project`, um arquivo `.heimdall.yaml`
+guarda os apontamentos:
+
+```yaml
+profiles:
+  time1-dev:
+    descricao: backend de dev do time 1
+    account: stterraform
+    container: time1
+    key: dev/app.tfstate
+
+  devops:
+    org: minhaorg
+    project: MeuProjeto
+```
+
+```sh
+heimdall terraform states list --profile time1-dev
+heimdall terraform states show hml/api.tfstate --profile time1-dev
+```
+
+**A flag sempre vence o perfil**, que preenche só o que ficou em branco — dá
+para apontar um perfil e trocar apenas a chave do state na linha de comando.
+
+O arquivo é procurado no diretório atual e depois no home, ou no caminho de
+`--config`. **Sem `--profile` ele nem é lido**: quem passa tudo por flag não
+deve ser afetado por um arquivo quebrado no diretório.
+
+**Nada de segredo vai nele.** Conta, container, caminho e projeto não são
+segredos, e o arquivo é feito para ser versionado junto do repositório. A
+decodificação é estrita: campo desconhecido vira erro, então tanto um `acccount`
+digitado errado quanto um `access_key` colocado ali por engano são recusados na
+hora.
+
 ## Comandos
 
 ### `terraform plan-review`

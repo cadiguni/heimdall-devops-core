@@ -1,7 +1,6 @@
 package main
 
 import (
-	"encoding/json"
 	"fmt"
 
 	"github.com/spf13/cobra"
@@ -11,18 +10,14 @@ import (
 )
 
 type variablesOptions struct {
-	organization string
-	project      string
-	showValues   bool
-	output       string
+	targetOptions
+	showValues bool
+	output     string
 }
 
 func (o *variablesOptions) bind(cmd *cobra.Command) {
-	cmd.Flags().StringVar(&o.organization, "org", "", "organização do Azure DevOps")
-	cmd.Flags().StringVar(&o.project, "project", "", "projeto do Azure DevOps")
-	cmd.Flags().StringVarP(&o.output, "output", "o", "text", "formato da saída: text ou json")
-	cmd.MarkFlagRequired("org")
-	cmd.MarkFlagRequired("project")
+	o.bindDevOps(cmd)
+	bindOutput(cmd, &o.output)
 }
 
 func newVariablesCmd(gf *globalFlags) *cobra.Command {
@@ -148,15 +143,19 @@ func runVariablesShow(cmd *cobra.Command, opts *variablesOptions, nameOrID strin
 	return pipelinedoctor.WriteVariableGroupDetail(out, detail)
 }
 
+// devOpsClient resolve o alvo e abre o cliente do projeto.
+//
+// A validação acontece antes de qualquer credencial: errar a flag não deve
+// custar uma ida ao Entra ID para descobrir.
 func devOpsClient(opts *variablesOptions) (*azurex.DevOpsClient, error) {
-	if opts.output != "text" && opts.output != "json" {
-		return nil, fmt.Errorf("formato de saída inválido: %q (use text ou json)", opts.output)
+	if err := validateOutput(opts.output); err != nil {
+		return nil, err
 	}
-	return azurex.NewDevOpsClient(opts.organization, opts.project)
-}
 
-func encodeJSON(out interface{ Write([]byte) (int, error) }, v interface{}) error {
-	enc := json.NewEncoder(out)
-	enc.SetIndent("", "  ")
-	return enc.Encode(v)
+	devops, err := opts.resolveDevOps()
+	if err != nil {
+		return nil, err
+	}
+
+	return azurex.NewDevOpsClient(devops.Org, devops.Project)
 }

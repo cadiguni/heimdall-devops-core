@@ -11,15 +11,6 @@ import (
 	tfdoctor "github.com/cadiguni/heimdall-devops-core/internal/terraform"
 )
 
-type statesListOptions struct {
-	account        string
-	container      string
-	prefix         string
-	endpointSuffix string
-	includeAll     bool
-	output         string
-}
-
 func newStatesCmd(gf *globalFlags) *cobra.Command {
 	cmd := &cobra.Command{
 		Use: "states",
@@ -46,9 +37,16 @@ sem precisar de 'terraform init'.`,
 	return cmd
 }
 
+type statesListOptions struct {
+	targetOptions
+	prefix         string
+	endpointSuffix string
+	includeAll     bool
+	output         string
+}
+
 type statesShowOptions struct {
-	account        string
-	container      string
+	targetOptions
 	endpointSuffix string
 	output         string
 }
@@ -78,22 +76,15 @@ Exemplo:
 		},
 	}
 
-	cmd.Flags().StringVar(&opts.account, "account", "", "nome da storage account")
-	cmd.Flags().StringVar(&opts.container, "container", "", "nome do container")
-	cmd.Flags().StringVar(&opts.endpointSuffix, "endpoint-suffix", azurex.DefaultEndpointSuffix, "sufixo do endpoint (clouds soberanas usam outro)")
-	cmd.Flags().StringVarP(&opts.output, "output", "o", "text", "formato da saída: text ou json")
-	cmd.MarkFlagRequired("account")
-	cmd.MarkFlagRequired("container")
+	opts.bindBackend(cmd)
+	bindEndpointSuffix(cmd, &opts.endpointSuffix)
+	bindOutput(cmd, &opts.output)
 
 	return cmd
 }
 
 func runStatesShow(cmd *cobra.Command, opts *statesShowOptions, path string) error {
-	if opts.output != "text" && opts.output != "json" {
-		return fmt.Errorf("formato de saída inválido: %q (use text ou json)", opts.output)
-	}
-
-	client, err := azurex.NewContainerClient(opts.account, opts.container, opts.endpointSuffix)
+	client, err := containerClient(&opts.targetOptions, opts.endpointSuffix, opts.output, false)
 	if err != nil {
 		return err
 	}
@@ -106,9 +97,7 @@ func runStatesShow(cmd *cobra.Command, opts *statesShowOptions, path string) err
 	out := cmd.OutOrStdout()
 	if opts.output == "json" {
 		inspection.Container = client.URL()
-		enc := json.NewEncoder(out)
-		enc.SetIndent("", "  ")
-		return enc.Encode(inspection)
+		return encodeJSON(out, inspection)
 	}
 
 	// O container aparece antes do conteúdo: dev, hml e prod só se distinguem
@@ -141,35 +130,31 @@ histórico do shell e no log da pipeline.
 Exemplos:
 
   heimdall terraform states list --account stterraform --container time1
-  heimdall terraform states list --account stterraform --container time1 --prefix prod/`,
+  heimdall terraform states list --profile time1 --prefix prod/`,
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return runStatesList(cmd, &opts)
 		},
 	}
 
-	cmd.Flags().StringVar(&opts.account, "account", "", "nome da storage account")
-	cmd.Flags().StringVar(&opts.container, "container", "", "nome do container")
+	opts.bindBackend(cmd)
 	cmd.Flags().StringVar(&opts.prefix, "prefix", "", `limita a um caminho, ex.: "prod/"`)
-	cmd.Flags().StringVar(&opts.endpointSuffix, "endpoint-suffix", azurex.DefaultEndpointSuffix, "sufixo do endpoint (clouds soberanas usam outro)")
+	bindEndpointSuffix(cmd, &opts.endpointSuffix)
 	cmd.Flags().BoolVar(&opts.includeAll, "all", false, "lista também blobs que não parecem state")
-	cmd.Flags().StringVarP(&opts.output, "output", "o", "text", "formato da saída: text ou json")
-	cmd.MarkFlagRequired("account")
-	cmd.MarkFlagRequired("container")
+	bindOutput(cmd, &opts.output)
 
 	return cmd
 }
 
 func runStatesList(cmd *cobra.Command, opts *statesListOptions) error {
-	if opts.output != "text" && opts.output != "json" {
-		return fmt.Errorf("formato de saída inválido: %q (use text ou json)", opts.output)
-	}
-
-	client, err := azurex.NewContainerClient(opts.account, opts.container, opts.endpointSuffix)
+	client, err := containerClient(&opts.targetOptions, opts.endpointSuffix, opts.output, false)
 	if err != nil {
 		return err
 	}
 
+	// O prefixo é flag própria e nao vem do perfil: um perfil aponta para o
+	// backend do time, e herdar a chave dele faria o list mostrar um state so
+	// em vez do container inteiro.
 	inventory, err := tfdoctor.ListStates(cmd.Context(), client, tfdoctor.ListStatesOptions{
 		Prefix:          opts.prefix,
 		IncludeNonState: opts.includeAll,
@@ -181,10 +166,47 @@ func runStatesList(cmd *cobra.Command, opts *statesListOptions) error {
 
 	out := cmd.OutOrStdout()
 	if opts.output == "json" {
-		enc := json.NewEncoder(out)
-		enc.SetIndent("", "  ")
-		return enc.Encode(inventory)
+		return encodeJSON(out, inventory)
 	}
 
 	return tfdoctor.WriteStatesReport(out, inventory, time.Now())
+}
+
+// containerClient resolve o alvo e abre o cliente do container.
+//
+// A validação do formato de saída acontece aqui, antes de qualquer credencial:
+// errar a flag não deve custar uma ida ao Entra ID para descobrir.
+func containerClient(target *targetOptions, endpointSuffix, output string, needKey bool) (*azurex.ContainerClient, error) {
+	if err := validateOutput(output); err != nil {
+		return nil, err
+	}
+
+	backend, err := target.resolveBackend(needKey)
+	if err != nil {
+		return nil, err
+	}
+
+	return azurex.NewContainerClient(backend.Account, backend.Container, endpointSuffix)
+}
+
+func bindEndpointSuffix(cmd *cobra.Command, dest *string) {
+	cmd.Flags().StringVar(dest, "endpoint-suffix", azurex.DefaultEndpointSuffix,
+		"sufixo do endpoint (clouds soberanas usam outro)")
+}
+
+func bindOutput(cmd *cobra.Command, dest *string) {
+	cmd.Flags().StringVarP(dest, "output", "o", "text", "formato da saída: text ou json")
+}
+
+func validateOutput(output string) error {
+	if output != "text" && output != "json" {
+		return fmt.Errorf("formato de saída inválido: %q (use text ou json)", output)
+	}
+	return nil
+}
+
+func encodeJSON(out interface{ Write([]byte) (int, error) }, v interface{}) error {
+	enc := json.NewEncoder(out)
+	enc.SetIndent("", "  ")
+	return enc.Encode(v)
 }

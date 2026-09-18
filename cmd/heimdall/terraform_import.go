@@ -1,7 +1,6 @@
 package main
 
 import (
-	"encoding/json"
 	"fmt"
 
 	"github.com/spf13/cobra"
@@ -15,9 +14,7 @@ import (
 const exitCodeBlocked = 2
 
 type importOptions struct {
-	account        string
-	container      string
-	key            string
+	targetOptions
 	endpointSuffix string
 	chdir          string
 	apply          bool
@@ -57,29 +54,30 @@ Exemplo:
 		},
 	}
 
-	cmd.Flags().StringVar(&opts.account, "account", "", "nome da storage account")
-	cmd.Flags().StringVar(&opts.container, "container", "", "nome do container")
-	cmd.Flags().StringVar(&opts.key, "key", "", "caminho do state dentro do container, ex.: dev/app.tfstate")
-	cmd.Flags().StringVar(&opts.endpointSuffix, "endpoint-suffix", azurex.DefaultEndpointSuffix, "sufixo do endpoint (clouds soberanas usam outro)")
+	opts.bindBackend(cmd)
+	opts.bindKey(cmd)
+	bindEndpointSuffix(cmd, &opts.endpointSuffix)
 	cmd.Flags().StringVar(&opts.chdir, "chdir", ".", "diretório do módulo Terraform, já inicializado")
 	cmd.Flags().BoolVar(&opts.apply, "apply", false, "executa o import de verdade (sem isto é dry-run)")
-	cmd.Flags().StringVarP(&opts.output, "output", "o", "text", "formato da saída: text ou json")
-	cmd.MarkFlagRequired("account")
-	cmd.MarkFlagRequired("container")
-	cmd.MarkFlagRequired("key")
+	bindOutput(cmd, &opts.output)
 
 	return cmd
 }
 
 func runImport(cmd *cobra.Command, opts *importOptions, address, resourceID string) error {
-	if opts.output != "text" && opts.output != "json" {
-		return fmt.Errorf("formato de saída inválido: %q (use text ou json)", opts.output)
+	if err := validateOutput(opts.output); err != nil {
+		return err
 	}
 	if opts.output == "json" && opts.apply {
 		return fmt.Errorf("--output json não combina com --apply: a saída do terraform não é JSON")
 	}
 
-	client, err := azurex.NewContainerClient(opts.account, opts.container, opts.endpointSuffix)
+	backend, err := opts.resolveBackend(true)
+	if err != nil {
+		return err
+	}
+
+	client, err := azurex.NewContainerClient(backend.Account, backend.Container, opts.endpointSuffix)
 	if err != nil {
 		return err
 	}
@@ -87,9 +85,9 @@ func runImport(cmd *cobra.Command, opts *importOptions, address, resourceID stri
 	preflight, err := tfdoctor.PreflightImport(cmd.Context(), client, tfdoctor.ImportRequest{
 		Address:      address,
 		ResourceID:   resourceID,
-		Account:      opts.account,
-		Container:    opts.container,
-		Key:          opts.key,
+		Account:      backend.Account,
+		Container:    backend.Container,
+		Key:          backend.Key,
 		ContainerURL: client.URL(),
 	})
 	if err != nil {
@@ -98,9 +96,7 @@ func runImport(cmd *cobra.Command, opts *importOptions, address, resourceID stri
 
 	out := cmd.OutOrStdout()
 	if opts.output == "json" {
-		enc := json.NewEncoder(out)
-		enc.SetIndent("", "  ")
-		if err := enc.Encode(preflight); err != nil {
+		if err := encodeJSON(out, preflight); err != nil {
 			return err
 		}
 		if preflight.Blocked() {
