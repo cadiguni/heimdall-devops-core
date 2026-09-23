@@ -38,8 +38,20 @@ sintoma é um comando novo simplesmente não existir no binário instalado.
 Para conferir o que está instalado:
 
 ```sh
-heimdall terraform states --help
+heimdall --version
 ```
+
+A versão sai do binário, sem precisar de `-ldflags`. Vinda de
+`go install …@v0.1.0`, é a versão. Vinda de `go build` dentro do repositório, é
+um pseudo-version com commit e data:
+
+```
+heimdall version v0.0.0-20260923211053-188e2045a22d+dirty
+```
+
+O sufixo **`+dirty` significa build feito com alteração não commitada** — é a
+resposta direta para "por que meu binário não tem o comando que acabei de
+escrever".
 
 ## Perfis
 

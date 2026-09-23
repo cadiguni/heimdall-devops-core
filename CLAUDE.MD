@@ -65,6 +65,9 @@ templates de pipeline compartilhados, Variable Groups e recursos Azure.
   o root instala `flagErrorFunc`: o cobra faz parse de flag antes de validar
   argumento, então sem isso um subcomando errado vira erro sobre a flag
   seguinte e esconde a causa.
+- A versão vem do `debug.BuildInfo`, não de `-ldflags`: o Go carimba sozinho a
+  tag em `go install módulo@versão` e um pseudo-version com commit em
+  `go build`. O `-ldflags -X main.version` continua vencendo quando usado.
 - Instalar sempre do checkout (`go install ./cmd/heimdall`). O `@latest` pega o
   que o proxy.golang.org indexou, que fica atrás do `main` depois de um push.
 - Tudo versionado em LF (ver `.gitattributes`): com `core.autocrlf=true` no
