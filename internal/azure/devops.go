@@ -185,11 +185,59 @@ func checkDevOpsStatus(resp *http.Response, projectURL string) error {
 			"Confira se a assinatura do 'az login' está no tenant ligado à organização", projectURL)
 	case http.StatusUnauthorized, http.StatusForbidden:
 		return fmt.Errorf("sem permissão em %s (HTTP %d): "+
-			"sua conta precisa de acesso de leitura aos Variable Groups do projeto",
+			"sua conta precisa de acesso de leitura ao recurso pedido no projeto",
 			projectURL, resp.StatusCode)
 	case http.StatusNotFound:
 		return fmt.Errorf("organização ou projeto não encontrado: %s", projectURL)
 	default:
 		return fmt.Errorf("resposta inesperada de %s: HTTP %d", projectURL, resp.StatusCode)
 	}
+}
+
+// ServiceEndpoint é uma service connection do Azure DevOps.
+//
+// Não há campo de validade aqui, e isso não é omissão: a API não expõe
+// nenhum. O que expira é o segredo por trás da conexão, que vive no Entra ID
+// (app registration) ou no provedor externo — nunca no Azure DevOps.
+type ServiceEndpoint struct {
+	ID            string                `json:"id"`
+	Name          string                `json:"name"`
+	Type          string                `json:"type"`
+	Description   string                `json:"description"`
+	URL           string                `json:"url"`
+	IsShared      bool                  `json:"isShared"`
+	IsReady       bool                  `json:"isReady"`
+	Owner         string                `json:"owner"`
+	CreatedBy     IdentityRef           `json:"createdBy"`
+	Authorization EndpointAuthorization `json:"authorization"`
+}
+
+// EndpointAuthorization descreve como a conexão se autentica.
+//
+// Parameters não é lido: o campo carrega material de credencial, e mesmo com o
+// serviço mascarando os segredos, copiar o mapa inteiro para dentro do
+// programa contraria a regra de nunca manusear o que não é preciso.
+type EndpointAuthorization struct {
+	Scheme string `json:"scheme"`
+}
+
+// ServiceEndpointLister lista as service connections de um projeto.
+type ServiceEndpointLister interface {
+	ListServiceEndpoints(ctx context.Context) ([]ServiceEndpoint, error)
+}
+
+// ListServiceEndpoints lista as service connections do projeto.
+func (c *DevOpsClient) ListServiceEndpoints(ctx context.Context) ([]ServiceEndpoint, error) {
+	endpoint := fmt.Sprintf("%s/%s/%s/_apis/serviceendpoint/endpoints?api-version=%s",
+		c.baseURL, url.PathEscape(c.organization), url.PathEscape(c.project), devOpsAPIVersion)
+
+	var payload struct {
+		Count int               `json:"count"`
+		Value []ServiceEndpoint `json:"value"`
+	}
+	if err := c.getJSON(ctx, endpoint, &payload); err != nil {
+		return nil, err
+	}
+
+	return payload.Value, nil
 }

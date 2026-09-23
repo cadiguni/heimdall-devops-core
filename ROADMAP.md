@@ -14,6 +14,7 @@ ideia.
 | `terraform import` | state real (preflight); backend local (`--apply`) |
 | `pipeline diagnose` | corpus de 11 falhas reais |
 | `pipeline variables` | organização real, 63 grupos e 398 variáveis |
+| `pipeline connections` | organização real, 61 service connections |
 | perfis de configuração | `--profile` verificado contra o container e a organização reais |
 
 ## Usar antes de construir
@@ -31,19 +32,41 @@ código. Valem mais do que qualquer item abaixo.
   `states show`. O `prod/redis.tfstate` já foi confirmado vazio.
 - **1 state com `$(AliasAssinaturaParaTFState)` no nome** — variável da pipeline
   que não resolveu.
+- **51 das 61 service connections dependem de client secret** (`ServicePrincipal`),
+  e só uma usa federação de identidade de carga de trabalho. Cada migração para
+  federação elimina uma renovação futura e um motivo de pipeline quebrada.
 
 ## Próximo
 
-### `pipeline connections` — validade de service connection e PAT
-**Veio de achado real.** A organização tem seis grupos
-`PAT-AZ-SERVICE-CONNECTION-*`, e dentro deles variáveis como
-`expires_date_pat` e `docker_expiration_pat`. Ou seja: alguém rastreia validade
-de PAT **à mão**, em variável de pipeline.
+### Validade real das credenciais, via Microsoft Graph
+**A premissa original estava errada.** O roadmap dizia que "a API do Azure
+DevOps sabe a validade de verdade". Não sabe: o objeto `ServiceEndpoint` não
+tem campo nenhum de expiração — só `authorization.scheme`, `isReady`,
+`operationStatus`, tipo e dono. Verificado na referência da API antes de
+construir.
 
-A API do Azure DevOps sabe a validade de verdade. Um comando que lista service
-connections com data de expiração, e avisa das que vencem em N dias, substitui
-o controle manual — e ataca uma classe de falha que provavelmente já derrubou
-pipeline por lá.
+O que foi entregue no lugar (`pipeline connections list`) responde a pergunta
+anterior: **quais conexões dependem de algo que vence**. Na organização real,
+51 de 61 usam `ServicePrincipal`, e só uma usa federação de identidade.
+
+Para a data em si seria preciso o Microsoft Graph: dado o `serviceprincipalid`
+da conexão, ler `passwordCredentials[].endDateTime` da app registration. Fica
+como item futuro com uma ressalva séria: isso exige permissão de tenant
+(`Application.Read.All`), que boa parte dos usuários não tem — e um comando que
+só funciona para administrador vale menos que o que já existe.
+
+### Duplicatas e erros de digitação em service connection
+**Veio de achado real.** Na listagem de 61 conexões aparecem pares que apontam
+para a mesma assinatura e diferem só por grafia:
+
+- `ACR MPN-EDAPPER-NAP(...)` e `ACR-MPN-EDAPPER-NAP(...)`
+- `DeviosACR - MPN - IBARTMANN - SB (...)` e `DevopsACR - MPN - IBARTMANN - SB (...)`
+  — o primeiro é "Devios", erro de digitação de "Devops"
+- `MPN - AMACIEL - (...)` e `MPN - AMACIEL - NAP (...)`
+
+Mesma ideia da detecção de irregularidade nos states: agrupar por GUID de
+assinatura no nome e apontar os candidatos a duplicata. Barato, e cada par
+desses é uma conexão a menos para renovar quando o segredo vencer.
 
 ### Versionar e publicar
 O README precisa explicar que `go install …@latest` não pega o commit novo,

@@ -2,6 +2,7 @@ package azure
 
 import (
 	"context"
+	"encoding/json"
 	"io"
 	"net/http"
 	"strings"
@@ -219,5 +220,112 @@ func TestEscopoDoTokenEhOApplicationIDDoDevOps(t *testing.T) {
 
 	if devOpsResourceID != documentado {
 		t.Errorf("devOpsResourceID = %q, quero %q", devOpsResourceID, documentado)
+	}
+}
+
+const respostaDeConexoes = `{
+  "count": 2,
+  "value": [
+    {
+      "id": "5e47a0d8-c745-44f8-8f93-784f18ff31c4",
+      "name": "arm-federada",
+      "type": "azurerm",
+      "url": "https://management.azure.com/",
+      "isReady": true,
+      "isShared": false,
+      "owner": "Library",
+      "createdBy": {"displayName": "Fulano de Tal"},
+      "authorization": {
+        "scheme": "WorkloadIdentityFederation",
+        "parameters": {"serviceprincipalid": "abc", "tenantid": "def"}
+      }
+    },
+    {
+      "id": "7f22b1c9-0000-4444-9999-111111111111",
+      "name": "arm-com-secret",
+      "type": "azurerm",
+      "isReady": false,
+      "authorization": {"scheme": "ServicePrincipal", "parameters": {"serviceprincipalid": "xyz"}}
+    }
+  ]
+}`
+
+func TestListServiceEndpoints(t *testing.T) {
+	transport := &fakeTransport{bodies: []string{respostaDeConexoes}}
+
+	endpoints, err := clienteDevOpsFake(t, transport).ListServiceEndpoints(context.Background())
+	if err != nil {
+		t.Fatalf("ListServiceEndpoints: %v", err)
+	}
+
+	if len(endpoints) != 2 {
+		t.Fatalf("conexões = %d, quero 2", len(endpoints))
+	}
+
+	federada := endpoints[0]
+	if federada.Name != "arm-federada" || federada.Type != "azurerm" {
+		t.Errorf("primeira = %+v", federada)
+	}
+	if federada.Authorization.Scheme != "WorkloadIdentityFederation" {
+		t.Errorf("scheme = %q", federada.Authorization.Scheme)
+	}
+	if !federada.IsReady {
+		t.Error("IsReady deveria ser true")
+	}
+	if federada.CreatedBy.DisplayName != "Fulano de Tal" {
+		t.Errorf("CreatedBy = %q", federada.CreatedBy.DisplayName)
+	}
+
+	if endpoints[1].IsReady {
+		t.Error("a segunda conexão deveria vir como não pronta")
+	}
+}
+
+// EndpointAuthorization não declara "parameters" de propósito: o campo carrega
+// material de credencial, e o que não é preciso não deve nem ser decodificado.
+func TestParametrosDeAutorizacaoNaoSaoDecodificados(t *testing.T) {
+	transport := &fakeTransport{bodies: []string{respostaDeConexoes}}
+
+	endpoints, err := clienteDevOpsFake(t, transport).ListServiceEndpoints(context.Background())
+	if err != nil {
+		t.Fatalf("ListServiceEndpoints: %v", err)
+	}
+
+	asJSON, err := json.Marshal(endpoints)
+	if err != nil {
+		t.Fatalf("serializando: %v", err)
+	}
+	for _, parametro := range []string{"serviceprincipalid", "tenantid", "abc", "xyz"} {
+		if strings.Contains(string(asJSON), parametro) {
+			t.Errorf("parâmetro de autorização %q entrou na struct: %s", parametro, asJSON)
+		}
+	}
+}
+
+func TestListServiceEndpointsMontaAURL(t *testing.T) {
+	transport := &fakeTransport{bodies: []string{`{"count":0,"value":[]}`}}
+
+	if _, err := clienteDevOpsFake(t, transport).ListServiceEndpoints(context.Background()); err != nil {
+		t.Fatalf("ListServiceEndpoints: %v", err)
+	}
+
+	req := transport.requests[0]
+	if req.URL.Path != "/minhaorg/MeuProjeto/_apis/serviceendpoint/endpoints" {
+		t.Errorf("caminho = %q", req.URL.Path)
+	}
+	if got := req.URL.Query().Get("api-version"); got != devOpsAPIVersion {
+		t.Errorf("api-version = %q", got)
+	}
+}
+
+func TestListServiceEndpointsPropagaStatus(t *testing.T) {
+	transport := &fakeTransport{status: http.StatusForbidden, bodies: []string{"{}"}}
+
+	_, err := clienteDevOpsFake(t, transport).ListServiceEndpoints(context.Background())
+	if err == nil {
+		t.Fatal("erro = nil, quero falha no 403")
+	}
+	if !strings.Contains(err.Error(), "sem permissão") {
+		t.Errorf("erro = %v", err)
 	}
 }

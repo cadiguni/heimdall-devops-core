@@ -95,6 +95,10 @@ templates de pipeline compartilhados, Variable Groups e recursos Azure.
   API devolve null. Aponta variável cujo nome indica segredo sem estar marcada
   como secreta. Verificado contra uma organização real de 63 grupos e 398
   variáveis.
+- `pipeline connections` — lista service connections e classifica se a
+  credencial vence. A API do Azure DevOps não expõe data de validade nenhuma;
+  o comando responde a pergunta anterior. Esquema desconhecido vira "?", nunca
+  "não vence". Verificado contra 61 conexões reais.
 - `pipeline diagnose` — reconhece falhas em log de pipeline e sugere correção.
   Dez assinaturas, todas derivadas de um corpus de 11 falhas reais.
 
@@ -109,6 +113,8 @@ templates de pipeline compartilhados, Variable Groups e recursos Azure.
 - A heurística de "nome indica segredo" erra para os dois lados de propósito, e
   o relatório fala em suspeita. As exclusões (`public`, `expir`) saíram de
   falsos positivos reais, não de especulação.
+- Em service connection, `authorization.parameters` não é decodificado: carrega
+  material de credencial, e o que não é preciso não deve nem entrar na struct.
 - Token sem o escopo certo faz o Azure DevOps responder HTTP 203 com a página
   de login em vez de 401, e o corpo decodifica em silêncio para lista vazia. O
   adapter reconhece esse status; sem isso, "sem permissão" apareceria como

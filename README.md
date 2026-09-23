@@ -451,6 +451,45 @@ token não tiver o escopo certo, o Azure DevOps responde **HTTP 203 com a págin
 de login** em vez de 401; o comando reconhece esse caso e explica, em vez de
 mostrar "nenhum Variable Group encontrado".
 
+### `pipeline connections`
+
+Lista as service connections do projeto e separa as que dependem de segredo com
+validade das que não dependem de nada.
+
+```sh
+heimdall pipeline connections list --org minhaorg --project MeuProjeto
+```
+
+```
+NOME                    TIPO            AUTENTICAÇÃO                CREDENCIAL  PRONTA
+arm-federada            azurerm         WorkloadIdentityFederation  não vence   sim
+arm-com-secret          azurerm         ServicePrincipal            vence       sim
+docker-hub              dockerregistry  UsernamePassword            ?           sim
+
+Dependem de segredo com validade (1)
+  arm-com-secret  ServicePrincipal
+```
+
+**A data de validade não aparece, e não é omissão.** A API do Azure DevOps não
+expõe nenhuma: o objeto `ServiceEndpoint` tem `authorization.scheme`,
+`isReady`, tipo e dono, e mais nada sobre expiração. O segredo por trás da
+conexão vive no Entra ID (app registration) ou no provedor externo.
+
+O que o comando responde é a pergunta anterior e mais acionável: **quais
+conexões dependem de algo que vence**. Conexão do Azure por federação de
+identidade de carga de trabalho não tem segredo e não vence — migrar resolve o
+problema em vez de adiá-lo.
+
+Esquema que o catálogo não conhece vira `?`, nunca "não vence": dizer que algo
+é permanente quando não é seria o pior erro possível aqui.
+
+Também aponta as conexões que o Azure DevOps não considera prontas
+(`isReady: false`), que costumam ser credencial já inválida.
+
+**Nenhum parâmetro de autorização é lido** — a struct nem declara o campo
+`parameters`, então `serviceprincipalid`, `tenantid` e companhia não chegam a
+entrar no programa.
+
 ## Desenvolvimento
 
 ```sh
@@ -484,6 +523,7 @@ acusa todo arquivo como mal formatado.
 | `terraform states rm` / `mv` | preflight verificado contra state real; `--apply` com teste de integração em backend local |
 | `pipeline diagnose` | funcionando, 10 assinaturas cobrindo um corpus de 11 falhas reais |
 | `pipeline variables` | verificado contra uma organização real de 63 grupos; aponta segredo não marcado |
+| `pipeline connections` | verificado contra 61 service connections reais; separa o que vence do que não vence |
 
 Duas lacunas conhecidas:
 

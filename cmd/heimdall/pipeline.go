@@ -20,8 +20,9 @@ func newPipelineCmd(gf *globalFlags) *cobra.Command {
 
 Subcomandos disponíveis:
 
-  diagnose   lê um log de pipeline e aponta as falhas que reconhece
-  variables  inspeciona os Variable Groups de um projeto`,
+  diagnose     lê um log de pipeline e aponta as falhas que reconhece
+  variables    inspeciona os Variable Groups de um projeto
+  connections  lista as service connections e o que depende de segredo que vence`,
 		// Sem NoArgs, um subcomando errado seria engolido como argumento e o
 		// erro sairia sobre a flag seguinte, escondendo a causa.
 		Args: cobra.NoArgs,
@@ -32,6 +33,7 @@ Subcomandos disponíveis:
 
 	cmd.AddCommand(newDiagnoseCmd(gf))
 	cmd.AddCommand(newVariablesCmd(gf))
+	cmd.AddCommand(newConnectionsCmd(gf))
 
 	return cmd
 }
