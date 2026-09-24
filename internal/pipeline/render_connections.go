@@ -51,6 +51,9 @@ func WriteConnections(w io.Writer, inv *ConnectionInventory) error {
 	if err := writeNotReady(w, inv); err != nil {
 		return err
 	}
+	if err := writeDuplicates(w, inv); err != nil {
+		return err
+	}
 	return writeExpiring(w, inv)
 }
 
@@ -69,6 +72,34 @@ func writeNotReady(w io.Writer, inv *ConnectionInventory) error {
 		}
 	}
 	return nil
+}
+
+// writeDuplicates fala em suspeita, não em duplicata: duas conexões para a
+// mesma assinatura podem existir de propósito, e só quem conhece o projeto
+// decide qual apagar.
+func writeDuplicates(w io.Writer, inv *ConnectionInventory) error {
+	if len(inv.Duplicates) == 0 {
+		return nil
+	}
+
+	if _, err := fmt.Fprintf(w, "\nSuspeitas de duplicata: mesmo tipo e mesma assinatura no nome (%d)\n", len(inv.Duplicates)); err != nil {
+		return err
+	}
+	for _, g := range inv.Duplicates {
+		if _, err := fmt.Fprintf(w, "  %s, assinatura %s\n", g.Type, g.Subscription); err != nil {
+			return err
+		}
+		for _, name := range g.Names {
+			if _, err := fmt.Fprintf(w, "    %s\n", name); err != nil {
+				return err
+			}
+		}
+	}
+
+	_, err := fmt.Fprintln(w, "\nPode ser intencional (escopos ou permissões diferentes). Quando não for, cada\n"+
+		"conexão a menos é um segredo a menos para renovar. Antes de apagar, confira\n"+
+		"quais pipelines usam cada uma.")
+	return err
 }
 
 // writeExpiring é o ponto do comando: separar o que depende de segredo com

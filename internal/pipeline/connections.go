@@ -63,6 +63,10 @@ type Connection struct {
 type ConnectionInventory struct {
 	Project     string       `json:"project"`
 	Connections []Connection `json:"connections"`
+
+	// Duplicates são candidatos a duplicata: mesmo tipo e mesma assinatura no
+	// nome. Nunca nil, para o JSON sair como lista vazia.
+	Duplicates []DuplicateGroup `json:"duplicates"`
 }
 
 // Expiring devolve as conexões que dependem de segredo com validade.
@@ -109,6 +113,7 @@ func ListConnections(ctx context.Context, lister azure.ServiceEndpointLister) (*
 	sort.Slice(inventory.Connections, func(i, j int) bool {
 		return strings.ToLower(inventory.Connections[i].Name) < strings.ToLower(inventory.Connections[j].Name)
 	})
+	inventory.Duplicates = findDuplicates(inventory.Connections)
 
 	return inventory, nil
 }

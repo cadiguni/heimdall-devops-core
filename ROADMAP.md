@@ -16,6 +16,7 @@ ideia.
 | `pipeline variables` | organização real, 63 grupos e 398 variáveis |
 | `pipeline connections` | organização real, 61 service connections |
 | perfis de configuração | `--profile` verificado contra o container e a organização reais |
+| `heimdall version` e tag `v0.1.0` | `go install …@v0.1.0` instala por versão, sem clonar |
 
 ## Usar antes de construir
 
@@ -67,11 +68,6 @@ para a mesma assinatura e diferem só por grafia:
 Mesma ideia da detecção de irregularidade nos states: agrupar por GUID de
 assinatura no nome e apontar os candidatos a duplicata. Barato, e cada par
 desses é uma conexão a menos para renovar quando o segredo vencer.
-
-### Versionar e publicar
-O README precisa explicar que `go install …@latest` não pega o commit novo,
-porque o repositório não tem tag. Uma `v0.1.0` resolve: o time instala por
-versão, sem clonar, e `@latest` passa a significar algo.
 
 ## Depois
 

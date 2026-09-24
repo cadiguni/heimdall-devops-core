@@ -200,3 +200,80 @@ func TestWriteConnectionsPropagaErroDeEscrita(t *testing.T) {
 		t.Error("WriteConnections não propagou o erro de escrita")
 	}
 }
+
+const (
+	assinaturaA = "11111111-aaaa-4bbb-8ccc-000000000001"
+	assinaturaB = "22222222-aaaa-4bbb-8ccc-000000000002"
+)
+
+// Os três pares vêm da listagem real de 61 conexões, com GUID trocado: dois
+// diferem só por grafia, e um por um sufixo.
+func conexoesComDuplicata() []azure.ServiceEndpoint {
+	return []azure.ServiceEndpoint{
+		conexao("DeviosACR - MPN - FULANO - SB ("+assinaturaA+")", "dockerregistry", "ServicePrincipal", true),
+		conexao("DevopsACR - MPN - FULANO - SB ("+assinaturaA+")", "dockerregistry", "ServicePrincipal", true),
+		conexao("MPN - CICRANO - ("+assinaturaB+")", "azurerm", "ServicePrincipal", true),
+		// GUID em maiúscula: o mesmo GUID, grafado diferente.
+		conexao("MPN - CICRANO - NAP ("+strings.ToUpper(assinaturaB)+")", "azurerm", "ServicePrincipal", true),
+		// Mesma assinatura do par ACR, mas outro tipo: não é duplicata.
+		conexao("MPN - FULANO - ("+assinaturaA+")", "azurerm", "ServicePrincipal", true),
+		// Sem GUID no nome: fica de fora, mesmo com nome parecido.
+		conexao("docker-hub", "dockerregistry", "UsernamePassword", true),
+		conexao("docker hub", "dockerregistry", "UsernamePassword", true),
+	}
+}
+
+func TestListConnectionsApontaDuplicatas(t *testing.T) {
+	inv := listarConexoes(t, &fakeEndpointLister{endpoints: conexoesComDuplicata()})
+
+	if len(inv.Duplicates) != 2 {
+		t.Fatalf("grupos = %d, quero 2: %+v", len(inv.Duplicates), inv.Duplicates)
+	}
+
+	acr := inv.Duplicates[0]
+	if acr.Type != "dockerregistry" || acr.Subscription != assinaturaA || len(acr.Names) != 2 {
+		t.Errorf("primeiro grupo = %+v", acr)
+	}
+
+	mpn := inv.Duplicates[1]
+	if mpn.Type != "azurerm" || mpn.Subscription != assinaturaB || len(mpn.Names) != 2 {
+		t.Errorf("segundo grupo = %+v", mpn)
+	}
+	for _, name := range mpn.Names {
+		if strings.HasPrefix(name, "MPN - FULANO") {
+			t.Errorf("conexão de outra assinatura entrou no grupo: %q", name)
+		}
+	}
+}
+
+func TestListConnectionsSemDuplicataDevolveListaVazia(t *testing.T) {
+	inv := listarConexoes(t, &fakeEndpointLister{endpoints: conexoesDeExemplo()})
+
+	if inv.Duplicates == nil || len(inv.Duplicates) != 0 {
+		t.Errorf("Duplicates = %#v, quero slice vazio", inv.Duplicates)
+	}
+}
+
+func TestWriteConnectionsDuplicatas(t *testing.T) {
+	out := renderConexoes(t, conexoesComDuplicata())
+
+	for _, want := range []string{
+		"Suspeitas de duplicata: mesmo tipo e mesma assinatura no nome (2)",
+		"dockerregistry, assinatura " + assinaturaA,
+		"DeviosACR - MPN - FULANO - SB",
+		// Suspeita, não veredito: a saída precisa dizer que pode ser de propósito.
+		"Pode ser intencional",
+	} {
+		if !strings.Contains(out, want) {
+			t.Errorf("saída não contém %q:\n%s", want, out)
+		}
+	}
+}
+
+func TestWriteConnectionsSemDuplicataOmiteSecao(t *testing.T) {
+	out := renderConexoes(t, conexoesDeExemplo())
+
+	if strings.Contains(out, "Suspeitas de duplicata") {
+		t.Errorf("sem duplicata não deveria ter a seção:\n%s", out)
+	}
+}

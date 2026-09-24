@@ -53,7 +53,10 @@ Conexão do Azure por federação de identidade de carga de trabalho não tem
 segredo e não vence. Migrar para ela resolve o problema em vez de adiá-lo.
 
 Também aponta as conexões que o Azure DevOps não considera prontas, que
-costumam ser credencial já inválida.
+costumam ser credencial já inválida, e as suspeitas de duplicata: conexões do
+mesmo tipo cujo nome traz o mesmo GUID de assinatura. É suspeita, não
+veredito — pode haver motivo para as duas existirem. Conexão sem GUID no nome
+não entra na comparação.
 
 Exemplo:
 
