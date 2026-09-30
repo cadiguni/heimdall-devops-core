@@ -545,5 +545,6 @@ Duas lacunas conhecidas:
 - O catálogo de assinaturas não cobre **state lock preso**. Não há nenhum caso
   desses no corpus, e escrever a assinatura sem um log real seria chute.
 
-Convenções e princípios do projeto estão em [CLAUDE.MD](CLAUDE.MD); o que vem
+Como exercitar cada parte está em [TESTING.md](TESTING.md). Convenções e
+princípios do projeto estão em [CLAUDE.MD](CLAUDE.MD); o que vem
 pela frente, em [ROADMAP.md](ROADMAP.md).
