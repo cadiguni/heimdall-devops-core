@@ -15,9 +15,15 @@ são de leitura por padrão e explicitam contra o que estão operando.
 - `terraform` — só para gerar a entrada do `plan-review`
 - Azure CLI (`az`) autenticado — só para os comandos que leem o Azure
 
-## Build
+## Instalação
 
-A partir do repositório clonado:
+Para **usar**, instale por versão — não precisa clonar:
+
+```sh
+go install github.com/cadiguni/heimdall-devops-core/cmd/heimdall@v0.1.0
+```
+
+Para **desenvolver**, instale do seu checkout:
 
 ```sh
 go install ./cmd/heimdall
@@ -29,11 +35,10 @@ Ou, para só gerar o binário no diretório atual:
 go build -o heimdall ./cmd/heimdall
 ```
 
-**Instale sempre do seu checkout, não do proxy.** Este repositório não tem tag
-de versão, então `go install github.com/cadiguni/heimdall-devops-core/cmd/heimdall@latest`
-não pega o commit mais novo do `main`: pega o último pseudo-version que o
-`proxy.golang.org` indexou, que fica atrás por um tempo depois de um push. O
-sintoma é um comando novo simplesmente não existir no binário instalado.
+**Evite `@latest` logo depois de um push.** Ele resolve para o que o
+`proxy.golang.org` indexou, que leva alguns minutos para acompanhar uma tag
+nova — e o sintoma é um comando recém-escrito simplesmente não existir no
+binário. A versão explícita (`@v0.1.0`) e o checkout não têm esse atraso.
 
 Para conferir o que está instalado:
 
