@@ -46,6 +46,11 @@ type Diagnosis struct {
 	Source       string    `json:"source,omitempty"`
 	LinesScanned int       `json:"lines_scanned"`
 	Findings     []Finding `json:"findings"`
+
+	// Backend é o state que a execução usou, quando o log traz o comando de
+	// init. É o que permite apontar o comando de correção ao state certo sem
+	// ninguém precisar descobrir qual é.
+	Backend Backend `json:"backend,omitempty"`
 }
 
 // HasFindings informa se algo foi reconhecido.
@@ -82,6 +87,7 @@ func Diagnose(r io.Reader, source string) (*Diagnosis, error) {
 		Source:       source,
 		LinesScanned: len(lines),
 		Findings:     []Finding{},
+		Backend:      ExtractBackend(lines),
 	}
 
 	for idx, line := range lines {
@@ -98,7 +104,7 @@ func Diagnose(r io.Reader, source string) (*Diagnosis, error) {
 				Cause:     sig.cause,
 				Action:    sig.action,
 				Line:      idx + 1,
-				Evidence:  cleanLine(line),
+				Evidence:  cleanLine(evidenceOf(sig, line)),
 			}
 			if sig.enrich != nil {
 				finding.Details, finding.Commands = sig.enrich(match, lines, idx)
@@ -108,6 +114,8 @@ func Diagnose(r io.Reader, source string) (*Diagnosis, error) {
 			break
 		}
 	}
+
+	applyBackendToCommands(diagnosis.Findings, diagnosis.Backend)
 
 	return diagnosis, nil
 }
@@ -157,4 +165,15 @@ func firstNonEmpty(match []string) string {
 		}
 	}
 	return ""
+}
+
+// evidenceOf aplica o redator da assinatura, quando há um.
+//
+// A assinatura de segredo vazado tem o segredo na própria linha que a disparou:
+// sem isto, o achado reimprimiria o que acabou de detectar.
+func evidenceOf(sig signature, line string) string {
+	if sig.redact == nil {
+		return line
+	}
+	return sig.redact(line)
 }

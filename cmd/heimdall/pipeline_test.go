@@ -121,3 +121,68 @@ func TestPipelineMostraHelpSemArgs(t *testing.T) {
 		t.Errorf("não mostrou o help:\n%s", out)
 	}
 }
+
+// Diagnose é investigativo por padrão: achar coisa não é motivo para reprovar.
+// Num passo de pipeline a decisão se inverte, e aí a flag existe.
+func TestDiagnoseGateSoComAFlag(t *testing.T) {
+	semFlag := []string{"pipeline", "diagnose", "--log", pipelineFixtureDir + "pipeline_log_misto.txt"}
+	comFlag := append(append([]string{}, semFlag...), "--fail-on-findings")
+
+	if _, err := runCLI(t, "", semFlag...); err != nil {
+		t.Errorf("sem a flag deveria sair 0: %v", err)
+	}
+
+	_, err := runCLI(t, "", comFlag...)
+	if got := exitCodeFor(err); got != exitCodeBlocked {
+		t.Errorf("com a flag: código = %d, quero %d", got, exitCodeBlocked)
+	}
+}
+
+// Aviso de depreciação aparece em execução saudável; reprovar por ele
+// derrubaria a pipeline sem haver o que corrigir.
+func TestDiagnoseGateIgnoraAviso(t *testing.T) {
+	log := "╷\n│ Warning: Argument is deprecated\n│\n│   with azurerm_storage_account.storage,\n╵"
+
+	_, err := runCLI(t, log, "pipeline", "diagnose", "--log", "-", "--fail-on-findings")
+	if err != nil {
+		t.Errorf("só com aviso deveria sair 0: %v", err)
+	}
+}
+
+// O backend extraído do log é o que torna o comando de correção acionável.
+func TestDiagnoseMostraOBackendDoLog(t *testing.T) {
+	out, err := runCLI(t, "", "pipeline", "diagnose", "--log", pipelineFixtureDir+"pipeline_log_init.txt")
+	if err != nil {
+		t.Fatalf("erro = %v", err)
+	}
+
+	if !strings.Contains(out, "Backend da execução:") {
+		t.Errorf("faltou o backend na saída:\n%s", out)
+	}
+	if !strings.Contains(out, "hml/aplicacaodemo01api.tfstate") {
+		t.Errorf("faltou a chave do state:\n%s", out)
+	}
+}
+
+func TestDiagnoseBackendNoJSON(t *testing.T) {
+	out, err := runCLI(t, "",
+		"pipeline", "diagnose", "--log", pipelineFixtureDir+"pipeline_log_init.txt", "-o", "json",
+	)
+	if err != nil {
+		t.Fatalf("erro = %v", err)
+	}
+
+	var d struct {
+		Backend struct {
+			Account   string `json:"account"`
+			Container string `json:"container"`
+			Key       string `json:"key"`
+		} `json:"backend"`
+	}
+	if err := json.Unmarshal([]byte(out), &d); err != nil {
+		t.Fatalf("saída não é JSON válido: %v", err)
+	}
+	if d.Backend.Account == "" || d.Backend.Container == "" || d.Backend.Key == "" {
+		t.Errorf("backend no JSON = %+v", d.Backend)
+	}
+}

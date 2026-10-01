@@ -104,7 +104,10 @@ templates de pipeline compartilhados, Variable Groups e recursos Azure.
   o comando responde a pergunta anterior. Esquema desconhecido vira "?", nunca
   "não vence". Verificado contra 61 conexões reais.
 - `pipeline diagnose` — reconhece falhas em log de pipeline e sugere correção.
-  Dez assinaturas, todas derivadas de um corpus de 11 falhas reais.
+  Onze assinaturas derivadas de logs reais. Extrai o backend do log do init
+  (a task imprime o -backend-config antes de executar), então o comando de
+  import sai completo, apontando ao state da execução. `--fail-on-findings`
+  para uso como passo de pipeline.
 
 ## Sobre segredos em Variable Groups
 - Valor de variável só sai com `--show-values`, nunca por padrão: variável que
@@ -119,6 +122,12 @@ templates de pipeline compartilhados, Variable Groups e recursos Azure.
   falsos positivos reais, não de especulação.
 - Em service connection, `authorization.parameters` não é decodificado: carrega
   material de credencial, e o que não é preciso não deve nem entrar na struct.
+- A extração de backend do log pega só account, container e key. Os outros
+  parâmetros do -backend-config são credencial e não têm onde ser guardados.
+- Assinatura que detecta segredo tem a evidência redigida pelo campo `redact`:
+  a evidência é a linha que contém o segredo, e um detector que reimprime o que
+  achou não serve para nada. Só nome do parâmetro e tamanho vão para os
+  detalhes.
 - Token sem o escopo certo faz o Azure DevOps responder HTTP 203 com a página
   de login em vez de 401, e o corpo decodifica em silêncio para lista vazia. O
   adapter reconhece esse status; sem isso, "sem permissão" apareceria como

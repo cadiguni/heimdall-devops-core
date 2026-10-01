@@ -61,6 +61,12 @@ func WriteReport(w io.Writer, d *Diagnosis) error {
 		}
 	}
 
+	// O backend sai antes dos achados, e também quando não há achado nenhum:
+	// saber contra qual state a execução rodou vale por si.
+	if err := writeBackend(w, d.Backend); err != nil {
+		return err
+	}
+
 	if !d.HasFindings() {
 		_, err := fmt.Fprintln(w, "\nNenhuma falha conhecida reconhecida neste log.\n"+
 			"Isso não quer dizer que está tudo bem: quer dizer que o padrão não está no catálogo.")
@@ -166,4 +172,31 @@ func truncate(s string, max int) string {
 		return s
 	}
 	return string(runes[:max]) + "…"
+}
+
+// writeBackend mostra o state que a execução usou.
+//
+// É o dado que transforma o diagnóstico em ação: sem ele, quem lê sabe o que
+// deu errado mas não contra qual state corrigir.
+func writeBackend(w io.Writer, b Backend) error {
+	if b == (Backend{}) {
+		return nil
+	}
+
+	if _, err := fmt.Fprintf(w, "Backend da execução: %s/%s/%s\n",
+		valorOuInterrogacao(b.Account), valorOuInterrogacao(b.Container), valorOuInterrogacao(b.Key)); err != nil {
+		return err
+	}
+	if !b.Complete() {
+		_, err := fmt.Fprintln(w, "  (incompleto — o que faltar precisa vir de --profile ou de flag)")
+		return err
+	}
+	return nil
+}
+
+func valorOuInterrogacao(v string) string {
+	if v == "" {
+		return "?"
+	}
+	return v
 }

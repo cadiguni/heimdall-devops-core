@@ -226,3 +226,59 @@ func TestCatalogoCompleto(t *testing.T) {
 		ids[sig.id] = true
 	}
 }
+
+// Um detector de segredo vazado não pode reimprimir o segredo. A evidência do
+// achado é a própria linha que o contém, então ela passa por um redator.
+func TestSegredoVazadoNaoEhReimpresso(t *testing.T) {
+	const chave = "Ab3dEfGh1jKlMn0pQrSt2uVwXyZ4aBcDeFgHiJkLmNoPqRsTuVwXyZ567890abcd=="
+
+	log := "terraform init -backend-config=access_key=" + chave +
+		" -backend-config=storage_account_name=st -backend-config=container_name=c -backend-config=key=k"
+
+	d, err := Diagnose(strings.NewReader(log), "")
+	if err != nil {
+		t.Fatalf("Diagnose: %v", err)
+	}
+
+	var achado *Finding
+	for i := range d.Findings {
+		if d.Findings[i].Signature == "leaked-backend-secret" {
+			achado = &d.Findings[i]
+		}
+	}
+	if achado == nil {
+		t.Fatalf("não detectou o segredo em texto puro: %+v", d.Findings)
+	}
+
+	if strings.Contains(achado.Evidence, chave) {
+		t.Errorf("a evidência contém o segredo: %s", achado.Evidence)
+	}
+	if !strings.Contains(achado.Evidence, "caracteres omitidos") {
+		t.Errorf("evidência = %q, esperava o valor redigido", achado.Evidence)
+	}
+	// Os detalhes guardam o nome do parâmetro e o tamanho, nunca o valor.
+	if achado.Details["parametro"] != "access_key" {
+		t.Errorf("parametro = %q", achado.Details["parametro"])
+	}
+	for _, v := range achado.Details {
+		if strings.Contains(v, chave) {
+			t.Errorf("o segredo entrou nos detalhes: %+v", achado.Details)
+		}
+	}
+}
+
+// Valor mascarado pelo Azure DevOps é o caso normal e não pode virar achado.
+func TestSegredoMascaradoNaoViraAchado(t *testing.T) {
+	log := "terraform init -backend-config=access_key=*** -backend-config=client_secret=***"
+
+	d, err := Diagnose(strings.NewReader(log), "")
+	if err != nil {
+		t.Fatalf("Diagnose: %v", err)
+	}
+
+	for _, f := range d.Findings {
+		if f.Signature == "leaked-backend-secret" {
+			t.Errorf("mascarado não deveria disparar: %+v", f)
+		}
+	}
+}

@@ -378,11 +378,63 @@ terraform plan 2>&1 | heimdall pipeline diagnose --log -
 Ocorrências da mesma assinatura são agrupadas: seis variáveis não declaradas na
 mesma execução são um problema, não seis.
 
-O catálogo atual reconhece dez assinaturas, todas derivadas de falhas reais:
+**O comando sai pronto.** A task `TerraformTaskV4` imprime a linha de comando
+do `terraform init` antes de executar, com o `-backend-config` completo. O
+`diagnose` lê isso e passa a saber contra qual state corrigir:
+
+```
+Backend da execução: stterraform/time1/hml/app.tfstate
+
+...
+  Comandos sugeridos (confira antes de rodar):
+    terraform import 'azurerm_resource_group.rg[0]' '/subscriptions/…'
+    heimdall terraform import 'azurerm_resource_group.rg[0]' '/subscriptions/…' --account stterraform --container time1 --key hml/app.tfstate
+```
+
+A segunda linha é o passo inteiro: o log entra, o comando de correção sai, sem
+ninguém descobrir qual state era. **Sem o log do init, nenhum comando do
+heimdall é montado** — só o `terraform import` cru, porque inventar o backend
+seria pior que não sugerir.
+
+**Como passo de pipeline.** Com `--fail-on-findings`, o próprio build que
+quebrou imprime a causa:
+
+```yaml
+- script: terraform plan -out=tf.plan 2>&1 | tee $(Agent.TempDirectory)/tf.log
+  displayName: Terraform Plan
+
+- script: heimdall pipeline diagnose --log $(Agent.TempDirectory)/tf.log
+  displayName: Diagnóstico da falha
+  condition: failed()
+```
+
+A flag faz o passo sair com **código 2** quando há achado de erro. Aviso de
+depreciação não reprova: aparece em execução saudável e derrubaria a pipeline
+sem haver o que corrigir agora.
+
+Para o log do `init` entrar na análise junto com o da falha, concatene os dois
+arquivos — é dele que vem o backend.
+
+**Credencial do backend em texto puro.** Uma das assinaturas é de segurança: o
+Azure DevOps troca por `***` o valor de variável marcada como secreta, então um
+`-backend-config=access_key=` com valor inteiro no log significa que a variável
+**não** está marcada — e a chave ficou escrita no log de quem tem acesso à
+execução.
+
+O achado nunca reimprime o valor. A evidência sai redigida e os detalhes
+guardam só o nome do parâmetro e o tamanho:
+
+```
+linha 8: terraform init -backend-config=access_key=<70 caracteres omitidos> …
+  parametro=access_key  tamanho=70
+```
+
+O catálogo atual reconhece onze assinaturas, todas derivadas de falhas reais:
 
 | Assinatura | O que é |
 | --- | --- |
 | `resource-already-exists` | recurso existe no Azure, fora do state — gera o `terraform import` |
+| `leaked-backend-secret` | credencial do backend em texto puro no log (variável não marcada como secreta) |
 | `undeclared-variable` | `-var` para variável que o módulo raiz não declara |
 | `provider-schema-mismatch` | código usa bloco/argumento que a versão do provider não tem |
 | `cdn-custom-domain-cname` | custom domain não destrói porque o CNAME ainda aponta |

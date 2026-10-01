@@ -56,3 +56,24 @@ mensagem e a extração seriam chute.
 
 Logs crus vão em `logs-raw/` na raiz do repositório, que é ignorado pelo git.
 Nada de lá entra em commit sem passar pela higienização acima.
+
+## Fixture de init
+
+`pipeline_log_init.txt` é o log do passo `terraform init` da task
+`TerraformTaskV4` do Azure DevOps, que **imprime a linha de comando completa**
+antes de executar — e com ela o `-backend-config`. É de lá que sai o state da
+execução.
+
+Higienizado da mesma forma: storage account, container, chave do state e os
+GUIDs de subscription e tenant foram substituídos.
+
+Os valores mascarados **continuam mascarados** de propósito:
+
+```
+-backend-config=access_key=*** -backend-config=client_secret=***
+```
+
+O Azure DevOps troca por `***` o valor de variável marcada como secreta. A
+fixture precisa preservar isso, porque é o caso normal — e o caso anormal (valor
+em texto puro, por a variável não estar marcada) é construído em memória no
+teste, nunca gravado em arquivo.

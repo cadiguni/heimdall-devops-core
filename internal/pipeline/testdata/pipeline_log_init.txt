@@ -1,0 +1,17 @@
+Starting: 🔧 Terraform Init com Backend Azure
+==============================================================================
+Task         : Terraform
+Description  : Execute terraform commands to manage resources on AzureRM, Amazon Web Services(AWS), Google Cloud Platform(GCP) and Oracle Cloud Infrastructure(OCI). v4.241.11
+Version      : 4.241.36
+Author       : Microsoft Corporation
+==============================================================================
+/azp/_work/_tool/terraform/1.9.8/x64/terraform init -backend-config=access_key=*** -backend-config=storage_account_name=stexemploterraform -backend-config=container_name=meutime -backend-config=key=hml/aplicacaodemo01api.tfstate -backend-config=resource_group_name=terraform-rg -backend-config=subscription_id=00000000-0000-0000-0000-000000000005 -backend-config=tenant_id=00000000-0000-0000-0000-000000000006 -backend-config=client_id=*** -backend-config=client_secret=***
+Initializing the backend...
+Successfully configured the backend "azurerm"! Terraform will automatically
+use this backend unless the backend configuration changes.
+Initializing provider plugins...
+- Finding hashicorp/azurerm versions matching ">= 4.0.0, < 5.0.0"...
+- Installing hashicorp/azurerm v4.81.0...
+- Installed hashicorp/azurerm v4.81.0 (signed by HashiCorp)
+Terraform has been successfully initialized!
+Finishing: 🔧 Terraform Init com Backend Azure

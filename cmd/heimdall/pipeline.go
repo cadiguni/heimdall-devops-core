@@ -1,7 +1,6 @@
 package main
 
 import (
-	"encoding/json"
 	"fmt"
 	"io"
 	"os"
@@ -39,8 +38,9 @@ Subcomandos disponíveis:
 }
 
 type diagnoseOptions struct {
-	logPath string
-	output  string
+	logPath        string
+	output         string
+	failOnFindings bool
 }
 
 func newDiagnoseCmd(_ *globalFlags) *cobra.Command {
@@ -72,6 +72,8 @@ Exemplos:
 	}
 
 	cmd.Flags().StringVar(&opts.logPath, "log", "", `arquivo de log ("-" lê do stdin)`)
+	cmd.Flags().BoolVar(&opts.failOnFindings, "fail-on-findings", false,
+		"sair com código 2 quando houver achado de erro (para usar como passo de pipeline)")
 	cmd.Flags().StringVarP(&opts.output, "output", "o", "text", "formato da saída: text ou json")
 	cmd.MarkFlagRequired("log")
 
@@ -96,12 +98,19 @@ func runDiagnose(cmd *cobra.Command, opts *diagnoseOptions) error {
 
 	out := cmd.OutOrStdout()
 	if opts.output == "json" {
-		enc := json.NewEncoder(out)
-		enc.SetIndent("", "  ")
-		return enc.Encode(diagnosis)
+		if err := encodeJSON(out, diagnosis); err != nil {
+			return err
+		}
+	} else if err := pipelinedoctor.WriteReport(out, diagnosis); err != nil && !isBrokenPipe(err) {
+		return err
 	}
 
-	return pipelinedoctor.WriteReport(out, diagnosis)
+	// Aviso não reprova: "argumento depreciado" aparece em execução saudável e
+	// derrubaria a pipeline sem haver o que corrigir agora.
+	if opts.failOnFindings && len(diagnosis.Errors()) > 0 {
+		return &exitError{code: exitCodeBlocked}
+	}
+	return nil
 }
 
 func openLogInput(cmd *cobra.Command, path string) (io.Reader, func(), string, error) {

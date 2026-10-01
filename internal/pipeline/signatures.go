@@ -18,6 +18,13 @@ type signature struct {
 	// enrich extrai detalhes da mensagem e monta comandos, olhando o contexto
 	// em volta quando precisa. Opcional.
 	enrich func(match []string, lines []string, idx int) (map[string]string, []string)
+
+	// redact reescreve a linha antes de ela virar evidência do achado.
+	//
+	// Existe para a assinatura de segredo vazado: a evidência é a própria
+	// linha que contém o segredo, e um detector que reimprime o que achou não
+	// serve para nada. Opcional.
+	redact func(line string) string
 }
 
 // withAddressRe casa o bloco de contexto que o Terraform imprime abaixo do
@@ -51,6 +58,25 @@ var signatures = []signature{
 			return details, []string{
 				fmt.Sprintf("terraform import '%s' '%s'", address, match[1]),
 			}
+		},
+	},
+	{
+		id:       "leaked-backend-secret",
+		title:    "Credencial do backend em texto puro no log",
+		severity: SeverityError,
+		cause: "O Azure DevOps mascara o valor de variável marcada como secreta. Este " +
+			"apareceu inteiro, então a variável que alimenta o parâmetro não está marcada.",
+		action: "Marcar a variável como secreta no Variable Group e rotacionar a credencial — " +
+			"ela já está escrita no log de quem tem acesso à execução.",
+		re:     leakedBackendSecret,
+		redact: redactBackendSecret,
+		enrich: func(match []string, _ []string, _ int) (map[string]string, []string) {
+			// Só o nome do parâmetro e o tamanho. O valor não é guardado em
+			// lugar nenhum.
+			return map[string]string{
+				"parametro": match[1],
+				"tamanho":   fmt.Sprint(len(match[2])),
+			}, nil
 		},
 	},
 	{
@@ -207,4 +233,23 @@ func storageNameViolations(name string) []string {
 	}
 
 	return violations
+}
+
+// leakedBackendSecret casa um parâmetro de credencial do -backend-config cujo
+// valor NÃO está mascarado.
+//
+// O Azure DevOps troca por "***" o valor de variável marcada como secreta. Se o
+// valor aparece em texto puro, a variável que alimenta o parâmetro não está
+// marcada — e a chave ficou escrita no log, visível para quem tem acesso à
+// execução.
+var leakedBackendSecret = regexp.MustCompile(
+	`-backend-config=["']?(access_key|client_secret|sas_token)=([^\s"'*][^\s"']*)`)
+
+// redactBackendSecret troca o valor pelo tamanho, preservando o nome do
+// parâmetro. Sem isso, o achado reimprimiria o segredo que acabou de detectar.
+func redactBackendSecret(line string) string {
+	return leakedBackendSecret.ReplaceAllStringFunc(line, func(m string) string {
+		sub := leakedBackendSecret.FindStringSubmatch(m)
+		return fmt.Sprintf("-backend-config=%s=<%d caracteres omitidos>", sub[1], len(sub[2]))
+	})
 }
