@@ -50,11 +50,14 @@ templates de pipeline compartilhados, Variable Groups e recursos Azure.
   é o que o `remap` precisa reescrever. A exceção é imposta pelo tipo (a struct
   declara só o campo `id`, e o `encoding/json` descarta o resto), não por
   disciplina de quem escreve o código depois.
-- Existência de recurso no Azure não é checada pelo ARM. Quem tem acesso só ao
-  data plane do Storage recebe 404 para recurso que existe, e um check que não
-  separa ausência de invisibilidade travaria a ferramenta justamente para quem
-  tem o acesso mínimo. Quem confirma existência é o `terraform import`, pelo
-  provider.
+- O `remap` não checa existência de recurso no ARM, mas a razão NÃO é falta de
+  acesso: o ARM responde 200 para esta conta (verificado em 2026-10-13, e o
+  `states coverage` depende disso). A razão é que um check de existência
+  precisa valer para quem tem só o acesso mínimo de dados, e ali um 403 é
+  indistinguível de "não existe". Quem confirma existência é o `terraform
+  import`, pelo provider. Onde o ARM é usado, 401/403 vira erro explícito,
+  nunca lista vazia — listagem vazia por falta de permissão leria como
+  "a assinatura não tem resource group".
 
 ## Convenções
 - Go 1.25+ (piso vem do Azure SDK e do terraform-exec), Cobra para subcomandos.
@@ -127,6 +130,11 @@ templates de pipeline compartilhados, Variable Groups e recursos Azure.
   credencial vence. A API do Azure DevOps não expõe data de validade nenhuma;
   o comando responde a pergunta anterior. Esquema desconhecido vira "?", nunca
   "não vence". Verificado contra 61 conexões reais.
+- `terraform states coverage` — cruza os resource groups de uma assinatura com
+  o que os states de um container rastreiam. Três grupos: com state, sem state
+  neste container (candidato a feito à mão), e state que rastreia RG que não
+  está mais na assinatura. A evidência é o id dentro do state, não o nome.
+  Verificado contra 16 resource groups e 61 states reais.
 - `pipeline references` — procura onde uma assinatura ainda é citada: service
   connection (por `data.subscriptionId`), variável de Variable Group e arquivo
   do repositório. Somente leitura, e nenhum valor é impresso. Variável secreta
@@ -228,3 +236,17 @@ si entrar no heimdall:
 - A varredura do repositório relata arquivo e linha, não a linha. Em tfvars a
   linha pode ser connection string, e o relatório precisa poder ir para log de
   pipeline.
+
+## Sobre distinguir Terraform de feito à mão
+- A evidência é o id dentro do state, não o nome do recurso nem o nome do
+  Variable Group. O id carrega assinatura e resource group, e é o único sinal
+  que não depende de convenção que alguém pode ter quebrado.
+- "Sem state" é sempre "sem state NESTE container". Um resource group pode ter
+  state em outra conta de armazenamento, e o relatório diz isso em vez de
+  concluir. A conclusão depende de saber quais backends o time usa, e isso o
+  heimdall não sabe.
+- Data source não conta como rastreio: é relido a cada plan e não é gerenciado.
+- State ilegível vira nota, nunca silêncio. Tratá-lo como vazio diria que os
+  resource groups dele não têm state — a conclusão errada e a mais cara.
+- Tag de resource group é o que resta quando não há state. Na organização real,
+  `Responsável` e `Setor` estavam preenchidos em todos os sem-state.

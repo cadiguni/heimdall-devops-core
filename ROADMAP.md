@@ -12,6 +12,7 @@ ideia.
 | `terraform states list` / `show` | container real, 57 states |
 | `terraform states rm` / `mv` | state real (preflight); backend local (`--apply`) |
 | `terraform import` | state real (preflight); backend local (`--apply`) |
+| `terraform states coverage` | assinatura real (16 RGs) cruzada com container real (61 states) |
 | `terraform states remap` | move real: 3 ids novos conferidos no Azure (plano); runner falso (`--apply`) |
 | `pipeline diagnose` | corpus de 11 falhas reais |
 | `pipeline variables` | organização real, 63 grupos e 398 variáveis |
@@ -142,3 +143,30 @@ devolve `null` nas secretas — GET + PUT apagaria segredo. O caminho viável é
 indicada e preserva as secretas (achado do Lucas, de script dele em produção).
 Só vale construir se trocar valor em muitos grupos virar rotina; hoje o
 `references` aponta e a alteração é manual, de propósito.
+
+## Usar antes de construir — achado do `states coverage`
+
+**Achado real, 2026-10-13.** Na assinatura `92dbecc2` (MPN - RGRIEBLER), dos 16
+resource groups, **5 têm state** no container `nap` e **11 não têm**. Os sem
+state, com o responsável que a tag declara:
+
+| Resource group | Responsável (tag) |
+| --- | --- |
+| ACR-RGRIEBLER-rg | epravtz@gvdasa.com.br |
+| fichascompl-dev-rg | aubatuba@gvdasa.com.br |
+| fichascomplcomp-dev-rg / -hml-rg | lvargas@gvdasa.com.br |
+| fichascomplfront-dev-rg / -hml-rg | lvargas@gvdasa.com.br |
+| filtroservicebus-dev-rg | aubatuba@gvdasa.com.br |
+| gvlog-dev-rg | aubatuba@gvdasa.com.br |
+| painelfront-hml-rg | tbauer@gvdasa.com.br |
+| rg-gvCert | Marcelo Dalpiaz |
+| terraform | cfrancisco@gvdasa.com.br |
+
+Antes de ler como "11 feitos à mão": o comando só enxerga o container `nap` da
+conta `gvdasaterraformstate`. Se algum desses tem state em outro backend, não é
+feito à mão — é invisível para esta varredura. **A decisão é confirmar isso
+antes de agir**, e aí o que sobrar é a fila de importação.
+
+Dois states rastreiam resource group que não está mais na assinatura:
+`dev/testprojectapi.tfstate` e `dev/webappdesenvolvimentoapi.tfstate`. O segundo
+é o move já conhecido; o primeiro é o mesmo caso ou um RG apagado.

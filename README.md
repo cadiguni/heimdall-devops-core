@@ -293,6 +293,64 @@ cada uma antes de qualquer confirmação.
 Dry-run por padrão, `--apply` para executar, e reprovação sai com código 2 sem
 sugerir comando nenhum.
 
+### `terraform states coverage`
+
+Responde "o que aqui é Terraform e o que foi feito na mão?" por evidência, não
+por convenção de nome. Cruza os resource groups de uma assinatura com o que os
+states de um container rastreiam — o que decide é o id dos recursos dentro do
+state, que carrega a assinatura e o resource group.
+
+```sh
+heimdall terraform states coverage \
+  --subscription 92dbecc2-c36d-4af2-887d-3681969e5850 \
+  --account gvdasaterraformstate --container nap --tags
+```
+
+```
+Alvo
+  assinatura  92dbecc2-c36d-4af2-887d-3681969e5850
+  container   https://gvdasaterraformstate.blob.core.windows.net/nap
+  varridos    16 resource groups, 61 states
+
+Com state (5)
+  atena-dev-rg                dev/atena-dev.tfstate
+  gvpushweb-dev-rg            dev/gvpushwebapi.tfstate
+  GVtopicManager-dev-rg       dev/GVtopicManagerapi.tfstate
+  telemetriagvcollege-dev-rg  dev/telemetriagvcollegeapi.tfstate
+  telemetriagvcollege-hml-rg  hml/telemetriagvcollegeapi.tfstate
+
+Sem state neste container (11)
+  ACR-RGRIEBLER-rg         eastus  Responsável=epravtz@gvdasa.com.br Setor=NAP
+  fichascompl-dev-rg       eastus  Responsável=aubatuba@gvdasa.com.br Setor=Area 87
+  ...
+
+State rastreia resource group que não está na assinatura (2)
+  testproject-dev-rg            dev/testprojectapi.tfstate
+  webappdesenvolvimento-dev-rg  dev/webappdesenvolvimentoapi.tfstate
+```
+
+| Seção | O que significa |
+| --- | --- |
+| Com state | existe na assinatura e algum state rastreia, dizendo qual. Mais de um state no mesmo RG aparece inteiro: costuma ser divisão deliberada, às vezes é duplicata |
+| Sem state neste container | existe e nenhum state rastreia — o candidato a ter sido feito à mão |
+| State rastreia RG que não está na assinatura | apagado, ou movido para outra. Movido é o caso do `states remap` |
+
+**"Sem state neste container" é exatamente isso e não mais.** Um resource group
+pode ter state em outro container ou em outra conta. O relatório diz isso em vez
+de concluir por você — a conclusão depende de saber quais backends o time usa.
+
+`--tags` mostra as tags dos resource groups sem state. Sem state, a tag é o que
+resta para dizer de quem é o recurso: na verificação real, `Responsável` e
+`Setor` estavam preenchidos em todos.
+
+Data source não conta como rastreio: é relido a cada plan, e contá-lo diria que
+um resource group tem state quando não tem. State ilegível vira nota, nunca
+silêncio — tratá-lo como vazio diria que os resource groups dele não têm state,
+que é a conclusão errada e a mais cara.
+
+Precisa de leitura na assinatura (plano de controle) **e** no container (plano
+de dados). São permissões diferentes, e o comando diz qual faltou.
+
 ### `terraform states remap`
 
 Depois de mover recursos de uma assinatura para outra — no portal, pela CLI, ou
@@ -343,9 +401,10 @@ do resource group e dos recursos, então só o segmento da assinatura muda.
 
 **O move precisa ter acontecido antes.** Quem confirma que o recurso existe no
 destino é o próprio `terraform import`, que faz o read pelo provider. O heimdall
-não checa isso no ARM de propósito: quem tem acesso só ao data plane do Storage
-receberia "não existe" para recurso que existe, e o comando travaria para quem
-mais precisa dele.
+não checa isso no ARM de propósito: um 403 no plano de controle é
+indistinguível de "o recurso não existe", e o comando travaria para quem tem só
+o acesso de dados. Onde o ARM é usado (`states coverage`), o 403 vira erro
+explícito em vez de lista vazia.
 
 **`--rg` é quase sempre o que você quer.** Sem ele, a troca atinge todo recurso
 do state que esteja na assinatura de origem — inclusive o que não foi movido, e
@@ -757,6 +816,7 @@ acusa todo arquivo como mal formatado.
 | `terraform states show` | funcionando, verificado contra um state real de 27 recursos |
 | `terraform import` | preflight verificado contra state real; o `--apply` tem teste de integração com terraform e backend local, mas ainda não rodou contra o Azure |
 | `terraform states rm` / `mv` | preflight verificado contra state real; `--apply` com teste de integração em backend local |
+| `terraform states coverage` | verificado contra 16 resource groups e 61 states reais; 5 com state, 11 sem, 2 rastreando RG ausente |
 | `terraform states remap` | plano verificado contra um move real: os 3 ids novos existem na assinatura de destino. O `--apply` só tem teste com runner falso |
 | `pipeline diagnose` | funcionando, 10 assinaturas cobrindo um corpus de 11 falhas reais |
 | `pipeline variables` | verificado contra uma organização real de 63 grupos; aponta segredo não marcado |

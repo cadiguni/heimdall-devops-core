@@ -176,6 +176,35 @@ Baixa o state. **Nenhum valor de atributo é impresso**, só endereço, tipo e
 provider — mas o arquivo em si passa pela memória do processo, então trate como
 leitura de dado sensível: não redirecione para log compartilhado.
 
+### `terraform states coverage` — o que é Terraform e o que foi na mão
+
+Somente leitura, e precisa das duas permissões: leitura na assinatura (plano de
+controle) e no container (plano de dados).
+
+```sh
+heimdall terraform states coverage --subscription <assinatura> \
+  --account <conta> --container <container> --tags
+```
+
+O que conferir:
+
+1. **A linha "varridos".** `0 resource groups` é assinatura errada, não
+   assinatura vazia; `0 states` faz tudo aparecer como sem state. O comando
+   avisa nos dois casos.
+2. **Com state** — confirme que o state listado é o que você esperava. Dois
+   states no mesmo RG aparecem os dois: costuma ser divisão deliberada, às
+   vezes é duplicata.
+3. **Sem state neste container** — a lista de candidatos a "feito à mão".
+   Antes de concluir, confira se o time usa outro container ou outra conta de
+   armazenamento: o comando só enxerga o backend que você passou.
+4. **State rastreia RG que não está na assinatura** — apagado ou movido. Movido
+   é o caso do `states remap`.
+5. **Limites desta varredura** — state ilegível aparece aqui. Ele não conta
+   como "sem state": não deu para ler, e isso é diferente.
+
+Leva alguns segundos porque baixa cada state do container (61 states deram
+~11 s na verificação real).
+
 ### `pipeline references` — onde a assinatura ainda é citada
 
 Somente leitura, e é o passo que fecha a migração: o `states remap` acerta o

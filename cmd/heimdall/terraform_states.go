@@ -34,6 +34,7 @@ sem precisar de 'terraform init'.`,
 	cmd.AddCommand(newStatesRmCmd(gf))
 	cmd.AddCommand(newStatesMvCmd(gf))
 	cmd.AddCommand(newStatesRemapCmd(gf))
+	cmd.AddCommand(newStatesCoverageCmd(gf))
 
 	return cmd
 }
