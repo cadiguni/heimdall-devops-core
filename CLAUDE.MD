@@ -107,9 +107,9 @@ templates de pipeline compartilhados, Variable Groups e recursos Azure.
   move de recursos entre assinaturas. Mesmo padrão de preflight, mais o aviso
   sobre o backend. Classifica cada recurso em três grupos (remapeável, id não
   reescrevível, intocado) e para na primeira falha de forma retomável. O plano
-  foi verificado contra um state real; o `--apply` ainda não rodou contra um
-  move de verdade, porque o state usado aponta para recursos que não existem
-  em nenhuma assinatura visível.
+  foi verificado contra um move real: o state aponta para uma assinatura que já
+  não tem o resource group, e os três ids novos existem na de destino. O
+  `--apply` ainda não rodou — precisa do diretório do módulo inicializado.
 - `pipeline variables` — lista e detalha Variable Groups do Azure DevOps por
   Entra ID. Valores só com `--show-values`, e valor de secreta nunca, porque a
   API devolve null. Aponta variável cujo nome indica segredo sem estar marcada

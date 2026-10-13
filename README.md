@@ -668,7 +668,7 @@ acusa todo arquivo como mal formatado.
 | `terraform states show` | funcionando, verificado contra um state real de 27 recursos |
 | `terraform import` | preflight verificado contra state real; o `--apply` tem teste de integração com terraform e backend local, mas ainda não rodou contra o Azure |
 | `terraform states rm` / `mv` | preflight verificado contra state real; `--apply` com teste de integração em backend local |
-| `terraform states remap` | plano verificado contra um state real de 3 recursos; o `--apply` só tem teste com runner falso — ver a lacuna abaixo |
+| `terraform states remap` | plano verificado contra um move real: os 3 ids novos existem na assinatura de destino. O `--apply` só tem teste com runner falso |
 | `pipeline diagnose` | funcionando, 10 assinaturas cobrindo um corpus de 11 falhas reais |
 | `pipeline variables` | verificado contra uma organização real de 63 grupos; aponta segredo não marcado |
 | `pipeline connections` | verificado contra 61 service connections reais; separa o que vence do que não vence |
@@ -680,12 +680,11 @@ Três lacunas conhecidas:
   fora do Terraform, então não havia metadata para ler.
 - O catálogo de assinaturas não cobre **state lock preso**. Não há nenhum caso
   desses no corpus, e escrever a assinatura sem um log real seria chute.
-- O `states remap --apply` nunca rodou de verdade. O state que serviu de
-  verificação (`dev/webappdesenvolvimentoapi.tfstate`) tem os ids da
-  assinatura antiga, mas nem o resource group nem o web app existem em
-  nenhuma das 66 assinaturas visíveis — então dá para verificar o plano, e não
-  o import. O `--apply` fica com teste de unidade até aparecer um move de
-  verdade para acompanhar.
+- O `states remap --apply` ainda não rodou contra um move de verdade. O plano
+  foi verificado contra um caso real: `dev/webappdesenvolvimentoapi.tfstate`
+  aponta para uma assinatura que já não tem o resource group, e os três ids
+  novos que o comando monta existem todos na assinatura de destino. Falta a
+  execução, que precisa do diretório do módulo inicializado contra o backend.
 
 Como exercitar cada parte está em [TESTING.md](TESTING.md). Convenções e
 princípios do projeto estão em [CLAUDE.MD](CLAUDE.MD); o que vem

@@ -12,7 +12,7 @@ ideia.
 | `terraform states list` / `show` | container real, 57 states |
 | `terraform states rm` / `mv` | state real (preflight); backend local (`--apply`) |
 | `terraform import` | state real (preflight); backend local (`--apply`) |
-| `terraform states remap` | state real de 3 recursos (plano); runner falso (`--apply`) |
+| `terraform states remap` | move real: 3 ids novos conferidos no Azure (plano); runner falso (`--apply`) |
 | `pipeline diagnose` | corpus de 11 falhas reais |
 | `pipeline variables` | organização real, 63 grupos e 398 variáveis |
 | `pipeline connections` | organização real, 61 service connections |
@@ -80,8 +80,10 @@ assíncrona até o fim. Só vale construir se o portal de FinOps deixar de ser o
 lugar onde o move acontece.
 
 **O que está pendente de verificação, e é mais urgente que construir:** o
-`remap --apply` nunca rodou contra um move de verdade. O próximo move real de
-RG entre assinaturas é a oportunidade de fechar isso.
+`remap --apply`. O plano já foi conferido contra um move real — o
+`webappdesenvolvimento-dev-rg`, que saiu da assinatura `92dbecc2` e está na
+`51852c54`, com os três ids novos existindo lá. Falta rodar a execução a partir
+do diretório do módulo.
 
 ### Assinatura de state lock preso
 **Bloqueada por falta de dado.** Não há nenhum caso no corpus de 11 falhas. Sem
