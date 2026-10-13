@@ -195,8 +195,9 @@ heimdall pipeline variables show meugrupo --profile devops --show-values
 
 ## 4. Verificar os comandos que escrevem
 
-São três: `terraform import`, `terraform states rm` e `terraform states mv`.
-Todos são **dry-run por padrão** e só executam com `--apply`.
+São quatro: `terraform import`, `terraform states rm`, `terraform states mv` e
+`terraform states remap`. Todos são **dry-run por padrão** e só executam com
+`--apply`.
 
 ### Ordem segura
 
@@ -245,6 +246,66 @@ heimdall terraform states rm azurerm_resource_group.rg --profile meutime-dev --a
 
 Existe um intervalo entre o preflight e a execução em que outra pessoa pode
 travar o state. Nesse caso quem reclama é o terraform, com a mensagem dele.
+
+### `terraform states remap` — depois de um move entre assinaturas
+
+Este é o único comando que faz várias escritas numa execução, e por isso tem um
+roteiro próprio.
+
+**Pré-requisito que não é opcional:** o move dos recursos já tem que ter
+acontecido. O `remap` não move nada; ele só acerta o state. Se os recursos ainda
+estiverem na assinatura antiga, o `import` não acha nada no id novo e o state
+fica com buraco.
+
+Descubra a assinatura que está no state hoje — ela aparece nos ids do dry-run:
+
+```sh
+heimdall terraform states remap \
+  --from <assinatura-antiga> --to <assinatura-nova> \
+  --rg <nome-do-resource-group> \
+  --profile meutime-dev --chdir ../modulo
+```
+
+O que conferir no dry-run, nesta ordem:
+
+1. **O aviso do backend.** O heimdall não consegue verificar isso: se o storage
+   account do state estiver no RG que foi movido, o state desaparece no meio da
+   operação e não há como corrigir depois. Quem confirma é você.
+2. **"Serão remapeados"** — compare cada par `de`/`para`. Só o segmento da
+   assinatura deve mudar; nome de RG e de recurso ficam iguais.
+3. **"Mencionam a assinatura em formato não reescrevível"**, se aparecer. Isso
+   **bloqueia** (código 2) de propósito: esses ids precisam de tratamento à mão
+   antes, e seguir sem eles deixaria a migração pela metade.
+4. **"Não serão tocados"** — confira se algo que *deveria* ser remapeado caiu
+   aqui. A causa mais comum é o `--rg` com nome errado.
+
+Use `--rg` quase sempre. Sem ele a troca atinge todo recurso do state que esteja
+na assinatura de origem, movido ou não.
+
+Com `--apply`, o state é baixado para `<key>.<timestamp>.backup.tfstate` antes
+de qualquer escrita (`--backup-dir` muda onde). Guarde esse arquivo até o
+`terraform plan` voltar limpo.
+
+```sh
+heimdall terraform states remap \
+  --from <assinatura-antiga> --to <assinatura-nova> \
+  --rg <nome-do-resource-group> \
+  --profile meutime-dev --chdir ../modulo --apply
+```
+
+**Se parar no meio**, leia a fase:
+
+| Parou na fase de | Onde o recurso está | O que fazer |
+| --- | --- | --- |
+| `rm` | ainda no state, com o id antigo | resolver a causa e rodar de novo |
+| `import` | **fora do state**, existindo no Azure | rodar o `terraform import` que a saída imprime, ou rodar o comando de novo |
+
+Em ambos os casos, rodar o mesmo comando outra vez continua de onde parou: quem
+já foi remapeado não casa mais com o `--from`.
+
+**Fechamento:** `terraform plan` no módulo. O resultado esperado é nenhuma
+mudança. Se aparecer criação de recurso que já existe, algum id ficou errado — o
+backup é o caminho de volta.
 
 ---
 

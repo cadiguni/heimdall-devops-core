@@ -33,6 +33,7 @@ sem precisar de 'terraform init'.`,
 	cmd.AddCommand(newStatesShowCmd(gf))
 	cmd.AddCommand(newStatesRmCmd(gf))
 	cmd.AddCommand(newStatesMvCmd(gf))
+	cmd.AddCommand(newStatesRemapCmd(gf))
 
 	return cmd
 }

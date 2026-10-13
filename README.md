@@ -293,6 +293,84 @@ cada uma antes de qualquer confirmação.
 Dry-run por padrão, `--apply` para executar, e reprovação sai com código 2 sem
 sugerir comando nenhum.
 
+### `terraform states remap`
+
+Depois de mover recursos de uma assinatura para outra — no portal, pela CLI, ou
+por um portal próprio de FinOps —, o state continua com os ids antigos. O
+Terraform não acha os recursos, quer criar de novo, e o apply morre com
+`a resource with the ID ... already exists`.
+
+Este comando acerta o state. Para cada recurso cujo id tem a assinatura de
+origem, faz `state rm` seguido de `import` com o id novo — nunca editando o
+JSON do state.
+
+```sh
+heimdall terraform states remap \
+  --from 92dbecc2-c36d-4af2-887d-3681969e5850 \
+  --to   7c1e0b4a-0000-0000-0000-000000000000 \
+  --rg webappdesenvolvimento-dev-rg \
+  --account gvdasaterraformstate --container nap \
+  --key dev/webappdesenvolvimentoapi.tfstate \
+  --chdir ../modulo-webapp
+```
+
+```
+Alvo
+  operação   remapear assinatura no state
+  container  https://gvdasaterraformstate.blob.core.windows.net/nap
+  state      dev/webappdesenvolvimentoapi.tfstate
+  ambiente   dev
+  de         92dbecc2-c36d-4af2-887d-3681969e5850
+  para       7c1e0b4a-0000-0000-0000-000000000000
+
+Verificações
+  [!   ] backend fora do escopo: confirme que o storage account gvdasaterraformstate NÃO está na assinatura 92dbecc2-...
+  [ok  ] state existe: dev/webappdesenvolvimentoapi.tfstate, 11202 bytes
+  [ok  ] state destravado: sem lease ativo
+  [ok  ] recursos a remapear: 3 de 3
+
+Serão remapeados (3)
+  azurerm_resource_group.rg[0]
+    de   /subscriptions/92dbecc2-.../resourceGroups/webappdesenvolvimento-dev-rg
+    para /subscriptions/7c1e0b4a-.../resourceGroups/webappdesenvolvimento-dev-rg
+  ...
+
+Dry-run: nada foi executado.
+```
+
+O id novo é derivado, não adivinhado: um move entre assinaturas preserva o nome
+do resource group e dos recursos, então só o segmento da assinatura muda.
+
+**O move precisa ter acontecido antes.** Quem confirma que o recurso existe no
+destino é o próprio `terraform import`, que faz o read pelo provider. O heimdall
+não checa isso no ARM de propósito: quem tem acesso só ao data plane do Storage
+receberia "não existe" para recurso que existe, e o comando travaria para quem
+mais precisa dele.
+
+**`--rg` é quase sempre o que você quer.** Sem ele, a troca atinge todo recurso
+do state que esteja na assinatura de origem — inclusive o que não foi movido, e
+apontar o state para um id que não existe é pior que não mexer.
+
+Os recursos do state caem em três grupos, e o dry-run mostra os três:
+
+| Grupo | O que é | O que acontece |
+| --- | --- | --- |
+| Serão remapeados | a assinatura está no id como segmento de caminho | `state rm` + `import` |
+| Não reescrevíveis | a assinatura aparece no id em base64, querystring ou formato do provedor | **bloqueia**: reescrever às cegas daria um id inválido |
+| Não serão tocados | o id não menciona a assinatura, ou é data source | nada |
+
+O terceiro grupo é o chato de acertar e o segundo é o motivo de ele existir:
+tratar "não sei reescrever" como "não se aplica" deixaria a migração pela
+metade sem ninguém notar.
+
+Com `--apply`, o state é baixado para um arquivo de backup **antes** de qualquer
+escrita, e a execução para na primeira falha dizendo exatamente onde parou. Se a
+falha foi no `import`, aquele recurso está fora do state e existindo no Azure —
+a saída imprime o `terraform import` para fechar o buraco à mão. Resolvido o que
+travou, rodar o mesmo comando outra vez continua de onde parou: os já
+remapeados não aparecem mais no plano, porque o id deles deixou de ter a
+assinatura antiga.
+
 ### `terraform import`
 
 Importa um recurso existente no Azure para o state, depois de verificar que a
@@ -590,17 +668,24 @@ acusa todo arquivo como mal formatado.
 | `terraform states show` | funcionando, verificado contra um state real de 27 recursos |
 | `terraform import` | preflight verificado contra state real; o `--apply` tem teste de integração com terraform e backend local, mas ainda não rodou contra o Azure |
 | `terraform states rm` / `mv` | preflight verificado contra state real; `--apply` com teste de integração em backend local |
+| `terraform states remap` | plano verificado contra um state real de 3 recursos; o `--apply` só tem teste com runner falso — ver a lacuna abaixo |
 | `pipeline diagnose` | funcionando, 10 assinaturas cobrindo um corpus de 11 falhas reais |
 | `pipeline variables` | verificado contra uma organização real de 63 grupos; aponta segredo não marcado |
 | `pipeline connections` | verificado contra 61 service connections reais; separa o que vence do que não vence |
 
-Duas lacunas conhecidas:
+Três lacunas conhecidas:
 
 - A leitura da metadata `terraformlockid` do `states list` só tem teste
   unitário. Na verificação contra um lease real o blob tinha sido travado por
   fora do Terraform, então não havia metadata para ler.
 - O catálogo de assinaturas não cobre **state lock preso**. Não há nenhum caso
   desses no corpus, e escrever a assinatura sem um log real seria chute.
+- O `states remap --apply` nunca rodou de verdade. O state que serviu de
+  verificação (`dev/webappdesenvolvimentoapi.tfstate`) tem os ids da
+  assinatura antiga, mas nem o resource group nem o web app existem em
+  nenhuma das 66 assinaturas visíveis — então dá para verificar o plano, e não
+  o import. O `--apply` fica com teste de unidade até aparecer um move de
+  verdade para acompanhar.
 
 Como exercitar cada parte está em [TESTING.md](TESTING.md). Convenções e
 princípios do projeto estão em [CLAUDE.MD](CLAUDE.MD); o que vem

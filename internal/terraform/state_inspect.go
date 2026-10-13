@@ -23,7 +23,11 @@ const supportedStateVersion = 4
 // parser abaixo nem declara o campo "attributes", então os valores não chegam a
 // existir nesta struct.
 type StateResource struct {
-	Address  string `json:"address"`
+	Address string `json:"address"`
+
+	// ID é o identificador do recurso no provedor. Para azurerm é o caminho
+	// completo do ARM, com o GUID da assinatura dentro.
+	ID       string `json:"id,omitempty"`
 	Mode     string `json:"mode"`
 	Type     string `json:"type"`
 	Name     string `json:"name"`
@@ -83,6 +87,19 @@ type rawResource struct {
 type rawInstance struct {
 	IndexKey interface{} `json:"index_key"`
 	Status   string      `json:"status"`
+
+	// Attributes declara UM campo e só.
+	//
+	// A regra do projeto é não ler atributo de state, porque é lá que moram
+	// senha e connection string. A exceção é o id, e ela é imposta pelo tipo:
+	// o encoding/json descarta todo campo não declarado, então é
+	// estruturalmente impossível outro atributo passar por aqui.
+	//
+	// O id não é segredo — o Terraform já o imprime em cada linha de log — e
+	// sem ele não há como remapear a assinatura de um recurso movido.
+	Attributes struct {
+		ID string `json:"id"`
+	} `json:"attributes"`
 }
 
 // InspectState lê um arquivo de state e resume o que ele rastreia.
@@ -114,6 +131,7 @@ func InspectState(r io.Reader, path string) (*StateInspection, error) {
 		for _, inst := range res.Instances {
 			inspection.Resources = append(inspection.Resources, StateResource{
 				Address:  resourceAddress(res, inst),
+				ID:       inst.Attributes.ID,
 				Mode:     res.Mode,
 				Type:     res.Type,
 				Name:     res.Name,

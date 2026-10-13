@@ -40,6 +40,15 @@ templates de pipeline compartilhados, Variable Groups e recursos Azure.
   intervalo. Quem reclama nesse caso é o terraform, com a mensagem dele.
 - O heimdall nunca roda `terraform init`. Reconfigurar backend de diretório de
   trabalho alheio pode migrar state; o `init` é mostrado, nunca executado.
+- Valor de atributo de state não é lido, com uma exceção: `attributes.id`, que
+  é o que o `remap` precisa reescrever. A exceção é imposta pelo tipo (a struct
+  declara só o campo `id`, e o `encoding/json` descarta o resto), não por
+  disciplina de quem escreve o código depois.
+- Existência de recurso no Azure não é checada pelo ARM. Quem tem acesso só ao
+  data plane do Storage recebe 404 para recurso que existe, e um check que não
+  separa ausência de invisibilidade travaria a ferramenta justamente para quem
+  tem o acesso mínimo. Quem confirma existência é o `terraform import`, pelo
+  provider.
 
 ## Convenções
 - Go 1.25+ (piso vem do Azure SDK e do terraform-exec), Cobra para subcomandos.
@@ -94,6 +103,13 @@ templates de pipeline compartilhados, Variable Groups e recursos Azure.
   precisa estar livre. Lista as instâncias atingidas antes de confirmar, porque
   endereço sem índice pega todo o count/for_each. Verificado contra state real;
   o `--apply` tem teste de integração em backend local.
+- `terraform states remap` — troca a assinatura nos ids de um state depois de um
+  move de recursos entre assinaturas. Mesmo padrão de preflight, mais o aviso
+  sobre o backend. Classifica cada recurso em três grupos (remapeável, id não
+  reescrevível, intocado) e para na primeira falha de forma retomável. O plano
+  foi verificado contra um state real; o `--apply` ainda não rodou contra um
+  move de verdade, porque o state usado aponta para recursos que não existem
+  em nenhuma assinatura visível.
 - `pipeline variables` — lista e detalha Variable Groups do Azure DevOps por
   Entra ID. Valores só com `--show-values`, e valor de secreta nunca, porque a
   API devolve null. Aponta variável cujo nome indica segredo sem estar marcada
@@ -140,21 +156,28 @@ tomadas para o que ainda não existe.
 ## Próximos módulos combinados
 
 ### Migração de recursos entre assinaturas
-Mover um resource group de uma assinatura para outra e acertar o tfstate na
-mesma operação. As complicações conhecidas, para desenhar em cima delas:
+O `states remap` resolve a metade do state: dado que o move já aconteceu, troca
+a assinatura nos ids. O que sobrou de decisão de desenho, para quando o move em
+si entrar no heimdall:
 
 - O ID do recurso carrega o GUID da assinatura. Depois do move, todo ID no
-  state está errado, não só o do RG — cada recurso dentro dele também.
-- Corrigir isso é `state rm` + `import` por recurso (nunca editar o state, por
-  princípio), e o import precisa do ID novo, que só existe depois do move.
-- Nem todo tipo de recurso suporta move entre assinaturas, e o Azure tem uma
-  ação de validação (`validateMoveResources`) que deveria ser o primeiro passo
-  do preflight.
+  state está errado, não só o do RG — cada recurso dentro dele também. É isto
+  que o `remap` corrige, por `state rm` + `import`, nunca editando o state.
 - O move é assíncrono e pode falhar parcialmente, deixando metade dos recursos
-  de cada lado — o comando precisa ser retomável, não atômico.
+  de cada lado. Por isso o `remap` para na primeira falha e é retomável: rodar
+  outra vez continua de onde parou, porque quem já foi remapeado não casa mais
+  com o `--from`.
+- Nem todo tipo de recurso suporta move entre assinaturas, e o Azure tem uma
+  ação de validação (`validateMoveResources`). Ela pertence ao comando que fizer
+  o move, não ao `remap`: quando o `remap` roda, o move já aconteceu.
 - Armadilha mais séria: se o próprio storage account do backend estiver no RG
   que está sendo movido, o backend some no meio da operação e não há state para
-  corrigir depois. O preflight precisa detectar esse caso e recusar.
+  corrigir depois. O `remap` avisa e não afirma — descobrir em que assinatura
+  uma storage account mora é control plane, e quem roda o comando pode ter só
+  acesso de dados.
+- O que o `remap` não cobre e ficou combinado como fora de escopo: service
+  connection (não precisa criar nem editar agora) e a referência à assinatura
+  em Variable Group.
 
 ## Sobre o catálogo de assinaturas
 - Assinatura só entra com log real por trás. Sem amostra, a mensagem e a

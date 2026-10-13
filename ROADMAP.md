@@ -12,6 +12,7 @@ ideia.
 | `terraform states list` / `show` | container real, 57 states |
 | `terraform states rm` / `mv` | state real (preflight); backend local (`--apply`) |
 | `terraform import` | state real (preflight); backend local (`--apply`) |
+| `terraform states remap` | state real de 3 recursos (plano); runner falso (`--apply`) |
 | `pipeline diagnose` | corpus de 11 falhas reais |
 | `pipeline variables` | organização real, 63 grupos e 398 variáveis |
 | `pipeline connections` | organização real, 61 service connections |
@@ -71,10 +72,16 @@ desses é uma conexão a menos para renovar quando o segredo vencer.
 
 ## Depois
 
-### Migração de recursos entre assinaturas
-Mover um resource group entre assinaturas e acertar o tfstate junto. As
-complicações estão detalhadas no `CLAUDE.MD`; a pior é o backend morar no RG
-que está sendo movido, caso em que o preflight precisa recusar.
+### O move em si, entre assinaturas
+O `states remap` já entregou a parte do state: dado que o move aconteceu (hoje
+pelo portal de FinOps), ele troca a assinatura nos ids. Falta o move em si — o
+`validateMoveResources` do Azure como primeiro passo, e acompanhar a operação
+assíncrona até o fim. Só vale construir se o portal de FinOps deixar de ser o
+lugar onde o move acontece.
+
+**O que está pendente de verificação, e é mais urgente que construir:** o
+`remap --apply` nunca rodou contra um move de verdade. O próximo move real de
+RG entre assinaturas é a oportunidade de fechar isso.
 
 ### Assinatura de state lock preso
 **Bloqueada por falta de dado.** Não há nenhum caso no corpus de 11 falhas. Sem
