@@ -60,6 +60,11 @@ type RemapRequest struct {
 	Key       string
 
 	ContainerURL string
+
+	// Module é o retrato do diretório de trabalho, quando houver. Sem ele as
+	// verificações de configuração não acontecem, e o --apply é recusado antes
+	// de qualquer coisa.
+	Module *ModuleSnapshot
 }
 
 // RemapPlan é o que aconteceria, antes de acontecer.
@@ -71,6 +76,7 @@ type RemapPlan struct {
 	Container     string `json:"container"`
 	Key           string `json:"key"`
 	Environment   string `json:"environment,omitempty"`
+	ModuleDir     string `json:"module_dir,omitempty"`
 
 	Checks  []Check      `json:"checks"`
 	Entries []RemapEntry `json:"entries"`
@@ -159,6 +165,7 @@ func PlanRemap(ctx context.Context, client StateClient, req RemapRequest) (*Rema
 
 	plan.Entries = classifyForRemap(inspection.Resources, req)
 	checkTargets(plan)
+	checkModule(plan, req.Module, inspection.Lineage, req.From)
 
 	return plan, nil
 }

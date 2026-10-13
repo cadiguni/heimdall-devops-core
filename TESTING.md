@@ -266,6 +266,18 @@ heimdall terraform states remap \
   --profile meutime-dev --chdir ../modulo
 ```
 
+O `--chdir` é **obrigatório** no `--apply`, e com ele o preflight ganha três
+verificações do diretório:
+
+| Verificação | Reprova quando |
+| --- | --- |
+| módulo usa este state | o lineage do diretório não é o do state remoto, ou não há state lá (falta `terraform init`) |
+| recursos na configuração | algum alvo não tem bloco `resource` nos `.tf` da raiz |
+| configuração sem a assinatura antiga | nunca reprova — avisa se algum `.tf` ainda cita a assinatura de origem |
+
+A segunda é a que importa mais: o `terraform import` recusa recurso que não está
+na configuração, e o `state rm` antes dele já teria tirado do state.
+
 O que conferir no dry-run, nesta ordem:
 
 1. **O aviso do backend.** O heimdall não consegue verificar isso: se o storage

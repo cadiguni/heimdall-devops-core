@@ -436,8 +436,13 @@ func TestWriteRemapPlanBloqueadoNaoSugereComando(t *testing.T) {
 	if !strings.Contains(buf.String(), "Remap bloqueado") {
 		t.Errorf("saída = %q", buf.String())
 	}
-	if strings.Contains(buf.String(), "--apply") {
-		t.Errorf("plano bloqueado sugeriu --apply:\n%s", buf.String())
+	// O que não pode aparecer é o convite a executar. Dizer que o --apply exige
+	// --chdir é outra coisa: informa um requisito, não sugere contornar o
+	// bloqueio.
+	for _, proibido := range []string{"Para executar", "repita com --apply"} {
+		if strings.Contains(buf.String(), proibido) {
+			t.Errorf("plano bloqueado trouxe %q:\n%s", proibido, buf.String())
+		}
 	}
 }
 

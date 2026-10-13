@@ -1,11 +1,13 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"io"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/spf13/cobra"
@@ -77,7 +79,8 @@ Exemplo:
 	cmd.Flags().StringVar(&opts.resourceGroup, "rg", "",
 		"estreita a troca a um resource group (recomendado: o move costuma ser de um RG)")
 	bindEndpointSuffix(cmd, &opts.endpointSuffix)
-	cmd.Flags().StringVar(&opts.chdir, "chdir", ".", "diretório do módulo Terraform, já inicializado")
+	cmd.Flags().StringVar(&opts.chdir, "chdir", "",
+		"diretório do módulo Terraform, já inicializado (exigido por --apply)")
 	cmd.Flags().StringVar(&opts.backupDir, "backup-dir", ".", "onde gravar o backup do state antes de escrever")
 	cmd.Flags().BoolVar(&opts.apply, "apply", false, "executa de verdade (sem isto é dry-run)")
 	bindOutput(cmd, &opts.output)
@@ -99,6 +102,13 @@ func runStatesRemap(cmd *cobra.Command, opts *remapOptions) error {
 		return err
 	}
 
+	// Sem o diretório do módulo não dá para verificar que o import vai achar a
+	// configuração, e é o import que, falhando depois do rm, deixa o recurso
+	// fora do state. Então o --apply exige o --chdir.
+	if opts.apply && opts.chdir == "" {
+		return tfdoctor.ErrModuleRequired()
+	}
+
 	backend, err := opts.resolveBackend(true)
 	if err != nil {
 		return err
@@ -109,6 +119,11 @@ func runStatesRemap(cmd *cobra.Command, opts *remapOptions) error {
 		return err
 	}
 
+	var snap *tfdoctor.ModuleSnapshot
+	if opts.chdir != "" {
+		snap = moduleSnapshot(cmd.Context(), opts.chdir)
+	}
+
 	plan, err := tfdoctor.PlanRemap(cmd.Context(), client, tfdoctor.RemapRequest{
 		From:          opts.from,
 		To:            opts.to,
@@ -117,6 +132,7 @@ func runStatesRemap(cmd *cobra.Command, opts *remapOptions) error {
 		Container:     backend.Container,
 		Key:           backend.Key,
 		ContainerURL:  client.URL(),
+		Module:        snap,
 	})
 	if err != nil {
 		return err
@@ -187,4 +203,72 @@ func backupState(ctx context.Context, downloader azurex.BlobDownloader, key, dir
 
 	_, err = fmt.Fprintf(out, "\nBackup do state antes de escrever: %s\n", caminho)
 	return err
+}
+
+// moduleSnapshot lê o diretório do módulo para o preflight: os arquivos .tf e o
+// state que o diretório usa de verdade.
+//
+// Nenhum erro aqui interrompe o comando. Um diretório que não dá para
+// inspecionar é motivo de o preflight reprovar, com a causa escrita — e não de
+// o heimdall quebrar antes de mostrar o plano.
+func moduleSnapshot(ctx context.Context, dir string) *tfdoctor.ModuleSnapshot {
+	snap := &tfdoctor.ModuleSnapshot{Dir: dir}
+
+	arquivos, err := filepath.Glob(filepath.Join(dir, "*.tf"))
+	if err != nil {
+		snap.FilesErr = err.Error()
+	}
+	for _, caminho := range arquivos {
+		conteudo, err := os.ReadFile(caminho)
+		if err != nil {
+			snap.FilesErr = err.Error()
+			break
+		}
+		snap.Files = append(snap.Files, tfdoctor.ModuleFile{
+			Name:    filepath.Base(caminho),
+			Content: string(conteudo),
+		})
+	}
+
+	// Configuração em .tf.json existe e não é interpretada aqui. A contagem vai
+	// para o domínio avisar em vez de afirmar que falta recurso.
+	if json, err := filepath.Glob(filepath.Join(dir, "*.tf.json")); err == nil {
+		snap.JSONFileCount = len(json)
+	}
+
+	// O state vem com todos os atributos dentro, inclusive segredo. Vai para
+	// io.Discard de propósito: quem lê é só o parser, que fica com o id.
+	var stderr bytes.Buffer
+	puller, err := tfdoctor.NewExecImporter(dir, io.Discard, &stderr)
+	if err != nil {
+		snap.StatePullErr = err.Error()
+		return snap
+	}
+
+	raw, err := puller.StatePull(ctx)
+	if err != nil {
+		snap.StatePullErr = resumirErro(err, &stderr)
+		return snap
+	}
+	snap.RawState = raw
+
+	return snap
+}
+
+// resumirErro junta o erro do terraform com a última linha útil do stderr, que
+// é onde mora a causa de verdade ("Backend initialization required", por
+// exemplo).
+func resumirErro(err error, stderr *bytes.Buffer) string {
+	msg := err.Error()
+
+	var ultima string
+	for _, linha := range strings.Split(stderr.String(), "\n") {
+		if l := strings.TrimSpace(linha); l != "" {
+			ultima = l
+		}
+	}
+	if ultima != "" && !strings.Contains(msg, ultima) {
+		msg += ": " + ultima
+	}
+	return msg
 }

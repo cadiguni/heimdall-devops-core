@@ -80,3 +80,24 @@ func join(parts ...interface{}) []string {
 	}
 	return out
 }
+
+// Sem o diretório do módulo o preflight não verifica a configuração, e é a
+// configuração que decide se o 'import' depois do 'rm' acha o recurso. O
+// --apply recusa antes de tocar em nada.
+func TestRemapApplyExigeChdir(t *testing.T) {
+	args := join("terraform", "states", "remap",
+		[]string{"--account", "st", "--container", "c", "--key", "dev/app.tfstate"},
+		[]string{"--from", "11111111-1111-1111-1111-111111111111",
+			"--to", "22222222-2222-2222-2222-222222222222", "--apply"})
+
+	_, err := runCLI(t, "", args...)
+	if err == nil {
+		t.Fatal("--apply sem --chdir passou")
+	}
+	if !strings.Contains(err.Error(), "--chdir") {
+		t.Errorf("o erro não diz qual flag falta: %v", err)
+	}
+	if strings.Contains(err.Error(), "credencial") || strings.Contains(err.Error(), "DefaultAzureCredential") {
+		t.Errorf("chegou a tentar autenticar: %v", err)
+	}
+}

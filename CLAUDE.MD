@@ -40,6 +40,12 @@ templates de pipeline compartilhados, Variable Groups e recursos Azure.
   intervalo. Quem reclama nesse caso é o terraform, com a mensagem dele.
 - O heimdall nunca roda `terraform init`. Reconfigurar backend de diretório de
   trabalho alheio pode migrar state; o `init` é mostrado, nunca executado.
+- O `terraform state rm` funciona com o recurso fora da configuração e o
+  `terraform import` recusa (verificado rodando os dois). Num fluxo que faz rm
+  e depois import, isso deixaria o recurso fora do state por causa verificável
+  antes — então quem faz os dois verifica a configuração no preflight.
+- Em diretório sem backend inicializado o `terraform state pull` sai com código
+  0 e saída vazia (verificado). Vazio é caso próprio, não erro de parser.
 - Valor de atributo de state não é lido, com uma exceção: `attributes.id`, que
   é o que o `remap` precisa reescrever. A exceção é imposta pelo tipo (a struct
   declara só o campo `id`, e o `encoding/json` descarta o resto), não por
@@ -105,7 +111,9 @@ templates de pipeline compartilhados, Variable Groups e recursos Azure.
   o `--apply` tem teste de integração em backend local.
 - `terraform states remap` — troca a assinatura nos ids de um state depois de um
   move de recursos entre assinaturas. Mesmo padrão de preflight, mais o aviso
-  sobre o backend. Classifica cada recurso em três grupos (remapeável, id não
+  sobre o backend. Com `--chdir` (exigido pelo `--apply`)
+  também confere o lineage do diretório, se cada alvo tem bloco na configuração
+  e se a configuração ainda cita a assinatura antiga. Classifica cada recurso em três grupos (remapeável, id não
   reescrevível, intocado) e para na primeira falha de forma retomável. O plano
   foi verificado contra um move real: o state aponta para uma assinatura que já
   não tem o resource group, e os três ids novos existem na de destino. O

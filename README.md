@@ -363,6 +363,32 @@ O terceiro grupo é o chato de acertar e o segundo é o motivo de ele existir:
 tratar "não sei reescrever" como "não se aplica" deixaria a migração pela
 metade sem ninguém notar.
 
+O preflight também inspeciona o diretório do módulo, quando `--chdir` é
+informado — e o `--apply` **exige** `--chdir`, por um motivo concreto:
+
+| Comando | Precisa do recurso na configuração? |
+| --- | --- |
+| `terraform state rm` | não |
+| `terraform import` | **sim**, recusa de saída |
+
+O remap faz `rm` e depois `import`. Apontar `--chdir` para o diretório errado
+faria o `rm` passar e o `import` falhar, deixando o recurso fora do state por
+uma causa que era verificável antes de escrever nada. As três verificações
+existem para isso:
+
+- **módulo usa este state** — compara o lineage do `terraform state pull` com o
+  do state remoto. Lineage é a identidade do state; um diretório inicializado
+  contra outro backend se denuncia aqui. Reprova.
+- **recursos na configuração** — procura o bloco `resource "tipo" "nome"` de
+  cada alvo nos `.tf` da raiz. Reprova se faltar. Recurso dentro de `module.`
+  vira aviso, porque o bloco mora no diretório do módulo e não dá para conferir
+  daqui; o mesmo vale quando há `.tf.json`, que o heimdall não interpreta.
+- **configuração sem a assinatura antiga** — avisa se algum `.tf` ainda cita a
+  assinatura de origem. Remapear o state e deixar a configuração velha é trocar
+  o problema de lugar: o próximo `plan` volta para a antiga. É aviso e não
+  reprovação porque a assinatura costuma vir de variável ou de Variable Group,
+  onde o heimdall não enxerga.
+
 Com `--apply`, o state é baixado para um arquivo de backup **antes** de qualquer
 escrita, e a execução para na primeira falha dizendo exatamente onde parou. Se a
 falha foi no `import`, aquele recurso está fora do state e existindo no Azure —

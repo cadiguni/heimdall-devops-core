@@ -18,6 +18,9 @@ func WriteRemapPlan(w io.Writer, p *RemapPlan, apply bool) error {
 	if p.ResourceGroup != "" {
 		fmt.Fprintf(tw, "  resource group\t%s\n", p.ResourceGroup)
 	}
+	if p.ModuleDir != "" {
+		fmt.Fprintf(tw, "  módulo\t%s\n", p.ModuleDir)
+	}
 	fmt.Fprintf(tw, "  de\t%s\n", p.From)
 	fmt.Fprintf(tw, "  para\t%s\n", p.To)
 	if err := tw.Flush(); err != nil {
@@ -124,6 +127,16 @@ func writeRemapPlanTail(w io.Writer, p *RemapPlan, apply bool) error {
 		"estiverem na assinatura antiga, o import não acha nada no id novo e o\n"+
 		"state fica com buraco."); err != nil {
 		return err
+	}
+
+	// Sem --chdir o preflight não viu a configuração, e é a configuração que
+	// decide se o 'import' depois do 'rm' vai achar o recurso.
+	if p.ModuleDir == "" {
+		if _, err := fmt.Fprintln(w, "\nA configuração do módulo não foi verificada. Passe --chdir com o diretório\n"+
+			"do módulo para o preflight conferir que o 'import' vai achar os recursos —\n"+
+			"o --apply exige isso."); err != nil {
+			return err
+		}
 	}
 
 	_, err := fmt.Fprintln(w, "\nPara executar, repita com --apply. Cada recurso é um 'state rm' seguido de\n"+

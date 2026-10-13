@@ -75,3 +75,16 @@ func (e *ExecImporter) StateMv(ctx context.Context, source, destination string) 
 // verificação em tempo de compilação de que o executor real satisfaz a
 // interface usada pelos comandos.
 var _ Runner = (*ExecImporter)(nil)
+
+// StatePull devolve o state que o diretório de trabalho usa, como veio do
+// backend. Só lê: é o que o preflight do remap usa para confirmar que o
+// diretório está apontado para este state e não para outro.
+func (e *ExecImporter) StatePull(ctx context.Context) (string, error) {
+	raw, err := e.tf.StatePull(ctx)
+	if err != nil {
+		return "", fmt.Errorf("terraform state pull falhou: %w", err)
+	}
+	return raw, nil
+}
+
+var _ StatePuller = (*ExecImporter)(nil)
