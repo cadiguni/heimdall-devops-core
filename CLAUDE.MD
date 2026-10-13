@@ -127,6 +127,12 @@ templates de pipeline compartilhados, Variable Groups e recursos Azure.
   credencial vence. A API do Azure DevOps não expõe data de validade nenhuma;
   o comando responde a pergunta anterior. Esquema desconhecido vira "?", nunca
   "não vence". Verificado contra 61 conexões reais.
+- `pipeline references` — procura onde uma assinatura ainda é citada: service
+  connection (por `data.subscriptionId`), variável de Variable Group e arquivo
+  do repositório. Somente leitura, e nenhum valor é impresso. Variável secreta
+  vai para "não verificável", porque a API devolve null. Cruza as origens:
+  library citando a assinatura sem nenhuma conexão do projeto apontar para ela
+  vira nota. Verificado contra a organização real, onde achou 9 grupos.
 - `pipeline diagnose` — reconhece falhas em log de pipeline e sugere correção.
   Onze assinaturas derivadas de logs reais. Extrai o backend do log do init
   (a task imprime o -backend-config antes de executar), então o comando de
@@ -200,3 +206,25 @@ si entrar no heimdall:
 - Log cru vai em `logs-raw/` (ignorado pelo git). Fixture em `testdata/` só
   depois de higienizada, e a higienização precisa preservar a semântica do
   caso (ver `internal/pipeline/testdata/README.md`).
+
+## Sobre a referência à assinatura fora do state
+- Atualizar Variable Group pela API é `PUT` que substitui o mapa inteiro de
+  variáveis (verificado na doc 7.1), e a leitura devolve `null` no valor das
+  secretas. GET seguido de PUT apagaria os segredos do grupo, então o heimdall
+  não escreve em library.
+- O `az pipelines variable-group variable update` **não** tem esse problema:
+  altera só a variável indicada e preserva as secretas. Isso é achado do Lucas,
+  de script bash dele em produção, não inferência minha — e é o caminho se um
+  dia houver escrita.
+- `data.subscriptionId` e `data.subscriptionName` da service connection são
+  lidos; o resto do `data` não entra na struct. Mesmo critério do
+  `authorization.parameters`, ao contrário: ali nada é lido porque tudo é
+  credencial, aqui dois campos são lidos porque não são.
+- O valor da variável é lido para ser procurado, nunca impresso. É por isso que
+  `AllVariableGroupDetails` não tem flag de revelar: quem renderiza referência
+  não tem caminho que imprima valor.
+- Variável secreta vai para "não verificável", em seção própria. Omitir seria
+  dizer que está limpa, e a API não permite saber.
+- A varredura do repositório relata arquivo e linha, não a linha. Em tfvars a
+  linha pode ser connection string, e o relatório precisa poder ir para log de
+  pipeline.

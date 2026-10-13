@@ -57,6 +57,12 @@ type Connection struct {
 	Ready     bool   `json:"ready"`
 	Shared    bool   `json:"shared,omitempty"`
 	CreatedBy string `json:"created_by,omitempty"`
+
+	// SubscriptionID e SubscriptionName vêm do campo data e só existem em
+	// conexão do Azure. São o que torna possível dizer quais conexões apontam
+	// para uma assinatura que mudou.
+	SubscriptionID   string `json:"subscription_id,omitempty"`
+	SubscriptionName string `json:"subscription_name,omitempty"`
 }
 
 // ConnectionInventory é o resultado da consulta a um projeto.
@@ -107,6 +113,9 @@ func ListConnections(ctx context.Context, lister azure.ServiceEndpointLister) (*
 			Ready:     e.IsReady,
 			Shared:    e.IsShared,
 			CreatedBy: e.CreatedBy.DisplayName,
+
+			SubscriptionID:   e.Data.SubscriptionID,
+			SubscriptionName: e.Data.SubscriptionName,
 		})
 	}
 

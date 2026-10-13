@@ -176,6 +176,41 @@ Baixa o state. **Nenhum valor de atributo é impresso**, só endereço, tipo e
 provider — mas o arquivo em si passa pela memória do processo, então trate como
 leitura de dado sensível: não redirecione para log compartilhado.
 
+### `pipeline references` — onde a assinatura ainda é citada
+
+Somente leitura, e é o passo que fecha a migração: o `states remap` acerta o
+state, este diz o que mais ficou apontando para a assinatura antiga.
+
+```sh
+heimdall pipeline references --subscription <assinatura-antiga> \
+  --org <organização> --project <projeto> --chdir <repo>
+```
+
+O que conferir:
+
+1. **A linha "varridos".** Se vier `0 service connections, 0 Variable Groups`,
+   a resposta não vale — confira `--org`/`--project`. O comando avisa quando
+   nada foi varrido.
+2. **Variable Groups (library).** Cada achado é grupo e variável. O valor não
+   aparece de propósito; abra no portal para ver.
+3. **Service connections.** O achado vem do campo `data.subscriptionId`. Se
+   aparecer `nome` em vez de `subscriptionId`, é nome desatualizado: o nome cita
+   a assinatura mas a conexão aponta para outra.
+4. **Não verificáveis: variáveis secretas.** A API devolve `null` no valor
+   dessas. Se alguma guarda a assinatura, esta varredura não alcança.
+5. **Limites desta varredura.** É aqui que sai o descasamento entre library e
+   conexões, que vale olhar antes de trocar valor.
+
+Sem nuvem, para testar a parte de repositório em qualquer máquina:
+
+```sh
+heimdall pipeline references --subscription <guid> --skip-devops --chdir .
+```
+
+O heimdall não altera Variable Group nem service connection. Para alterar,
+`az pipelines variable-group variable update` altera só a variável indicada e
+preserva as secretas do grupo.
+
 ### `pipeline variables` e `pipeline connections`
 
 ```sh

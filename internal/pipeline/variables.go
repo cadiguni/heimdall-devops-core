@@ -167,3 +167,28 @@ func detail(g azure.VariableGroup, revealValues bool) *VariableGroupDetail {
 
 	return d
 }
+
+// AllVariableGroupDetails detalha todos os grupos do projeto, com os valores
+// das variáveis não secretas.
+//
+// Os valores entram aqui para serem PROCURADOS, nunca impressos: é o que a
+// varredura de referências precisa, e por isso esta função não tem flag de
+// revelar. Quem renderiza achado de referência não imprime valor — o achado é o
+// endereço do que precisa mudar.
+func AllVariableGroupDetails(ctx context.Context, lister azure.VariableGroupLister) ([]VariableGroupDetail, error) {
+	groups, err := lister.ListVariableGroups(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	details := make([]VariableGroupDetail, 0, len(groups))
+	for _, g := range groups {
+		details = append(details, *detail(g, true))
+	}
+
+	sort.Slice(details, func(i, j int) bool {
+		return strings.ToLower(details[i].Name) < strings.ToLower(details[j].Name)
+	})
+
+	return details, nil
+}

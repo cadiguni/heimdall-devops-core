@@ -33,6 +33,7 @@ Subcomandos disponíveis:
 	cmd.AddCommand(newDiagnoseCmd(gf))
 	cmd.AddCommand(newVariablesCmd(gf))
 	cmd.AddCommand(newConnectionsCmd(gf))
+	cmd.AddCommand(newReferencesCmd(gf))
 
 	return cmd
 }

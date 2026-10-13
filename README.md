@@ -624,6 +624,69 @@ token não tiver o escopo certo, o Azure DevOps responde **HTTP 203 com a págin
 de login** em vez de 401; o comando reconhece esse caso e explica, em vez de
 mostrar "nenhum Variable Group encontrado".
 
+### `pipeline references`
+
+Depois de mover recursos de uma assinatura para outra, o tfstate é só uma das
+coisas que continuam apontando para a antiga. Este comando procura as outras, em
+três lugares:
+
+```sh
+heimdall pipeline references \
+  --subscription 92dbecc2-c36d-4af2-887d-3681969e5850 \
+  --org gvdasa --project NAP --chdir ../modulo
+```
+
+```
+Alvo
+  assinatura  92dbecc2-c36d-4af2-887d-3681969e5850
+  projeto     https://dev.azure.com/gvdasa/NAP
+  varridos    61 service connections, 67 Variable Groups, 0 arquivos
+
+Variable Groups (library) (9)
+  GVhub-Orquestrador-dev-GVdasa         ServiceConnection  o valor cita a assinatura
+  WebAppDesenvolvimento-Api-dev-GVdasa  ServiceConnection  o valor cita a assinatura
+  ...
+
+Não verificáveis: variáveis secretas (38)
+  ...
+
+Limites desta varredura
+  9 variável(is) de library citam a assinatura, mas nenhuma das 61 service
+  connections do projeto aponta para ela. A conexão citada pode estar em outro
+  projeto, ter sido apagada, ou não aparecer nesta listagem
+
+Nada foi alterado. O heimdall não escreve em Variable Group nem em service
+connection: a alteração é sua.
+```
+
+| Origem | Como procura |
+| --- | --- |
+| service connections | pelo campo `data.subscriptionId`, não pelo nome. Nome citando a assinatura sem o campo apontar para ela vira achado próprio: é nome desatualizado |
+| Variable Groups (library) | no valor e no nome de cada variável |
+| repositório | linha por linha em `.tf`, `.tfvars`, `.yml`, `.yaml`, `.json`, com arquivo e linha; pula `.git`, `.terraform` e `node_modules` |
+
+**Somente leitura, por decisão.** A API de atualização de Variable Group é um
+`PUT` que substitui o mapa inteiro de variáveis, e a de leitura devolve `null`
+no valor das secretas — um GET seguido de PUT apagaria os segredos do grupo. O
+`az pipelines variable-group variable update` não tem esse problema (ele altera
+só a variável indicada), mas quem decide o que alterar é quem conhece o efeito.
+
+**Nenhum valor é impresso.** Valor de variável pode ser connection string com a
+assinatura no meio, e a saída de um comando acaba em log de pipeline. O que sai
+é o endereço: grupo e variável, conexão e campo, arquivo e linha.
+
+**Variável secreta aparece como não verificável**, em seção própria. A API
+devolve `null` no valor dessas, então não há como saber se citam a assinatura —
+contá-las como limpas seria afirmar o que não se sabe.
+
+**A contagem de "varridos" não é enfeite.** "Nenhuma referência" em cima de zero
+grupos não é resposta, e com tudo zerado o comando diz isso em vez de parecer
+tranquilizador.
+
+Com `--skip-devops` varre só o repositório, sem nuvem nenhuma. Com `--also`
+procura outros textos além do GUID — nome de service connection, nome da
+assinatura.
+
 ### `pipeline connections`
 
 Lista as service connections do projeto e separa as que dependem de segredo com
@@ -698,6 +761,7 @@ acusa todo arquivo como mal formatado.
 | `pipeline diagnose` | funcionando, 10 assinaturas cobrindo um corpus de 11 falhas reais |
 | `pipeline variables` | verificado contra uma organização real de 63 grupos; aponta segredo não marcado |
 | `pipeline connections` | verificado contra 61 service connections reais; separa o que vence do que não vence |
+| `pipeline references` | verificado contra a organização real: 61 conexões, 67 Variable Groups; achou 9 grupos citando uma assinatura migrada |
 
 Três lacunas conhecidas:
 

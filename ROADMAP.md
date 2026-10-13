@@ -16,6 +16,7 @@ ideia.
 | `pipeline diagnose` | corpus de 11 falhas reais |
 | `pipeline variables` | organização real, 63 grupos e 398 variáveis |
 | `pipeline connections` | organização real, 61 service connections |
+| `pipeline references` | organização real: 61 conexões e 67 Variable Groups varridos |
 | perfis de configuração | `--profile` verificado contra o container e a organização reais |
 | `heimdall version` e tag `v0.1.0` | `go install …@v0.1.0` instala por versão, sem clonar |
 
@@ -120,3 +121,24 @@ provadas:
   Fecha sozinha no primeiro lock preso de verdade.
 - O workflow de CI nunca rodou. A sintaxe do YAML não foi validada localmente,
   só os comandos que ele executa.
+
+## Usar antes de construir — achado do `pipeline references`
+
+**Achado real, 2026-10-13.** Nove Variable Groups do projeto NAP apontam para
+uma service connection chamada `MPN - RGRIEBLER - NAP (92dbecc2-...)`, e
+nenhuma das 61 service connections do projeto aponta para essa assinatura. Os
+grupos: GVhub-Orquestrador dev e prod, GVmodeloExemplo-Frontend-app-dev,
+GVPushweb-Api-dev, GVtopicManager-Api-dev, TelemetriaGVcollege-Api dev e hml,
+TestProject-Api-dev e WebAppDesenvolvimento-Api-dev.
+
+Não dá para dizer pelo heimdall por que a conexão não está lá — outro projeto,
+apagada, ou fora desta listagem. É decisão, não código: ou a conexão volta, ou
+os nove grupos passam a apontar para outra. Vale mais que qualquer item abaixo.
+
+## Escrita em library, se um dia fizer sentido
+A API de atualização é `PUT` que substitui o mapa de variáveis, e a leitura
+devolve `null` nas secretas — GET + PUT apagaria segredo. O caminho viável é o
+`az pipelines variable-group variable update`, que altera só a variável
+indicada e preserva as secretas (achado do Lucas, de script dele em produção).
+Só vale construir se trocar valor em muitos grupos virar rotina; hoje o
+`references` aponta e a alteração é manual, de propósito.

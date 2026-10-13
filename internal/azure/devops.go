@@ -210,6 +210,19 @@ type ServiceEndpoint struct {
 	Owner         string                `json:"owner"`
 	CreatedBy     IdentityRef           `json:"createdBy"`
 	Authorization EndpointAuthorization `json:"authorization"`
+	Data          EndpointData          `json:"data"`
+}
+
+// EndpointData é o campo data da conexão, reduzido ao que identifica a
+// assinatura.
+//
+// O critério é o mesmo do Authorization, aplicado ao contrário: ali nada é
+// lido porque tudo é credencial; aqui duas coisas são lidas porque não são.
+// Declarar só esses dois campos faz o encoding/json descartar o resto do data,
+// então a redução é estrutural e não depende de disciplina depois.
+type EndpointData struct {
+	SubscriptionID   string `json:"subscriptionId"`
+	SubscriptionName string `json:"subscriptionName"`
 }
 
 // EndpointAuthorization descreve como a conexão se autentica.
