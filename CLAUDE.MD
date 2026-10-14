@@ -86,7 +86,7 @@ templates de pipeline compartilhados, Variable Groups e recursos Azure.
 - A versão vem do `debug.BuildInfo`, não de `-ldflags`: o Go carimba sozinho a
   tag em `go install módulo@versão` e um pseudo-version com commit em
   `go build`. O `-ldflags -X main.version` continua vencendo quando usado.
-- Para usar, instalar por versão (`@v0.1.0`); para desenvolver, do checkout
+- Para usar, instalar por versão (`@v0.2.0`); para desenvolver, do checkout
   (`go install ./cmd/heimdall`). O `@latest` pega o que o proxy.golang.org
   indexou, que leva minutos para acompanhar uma tag nova.
 - Tudo versionado em LF (ver `.gitattributes`): com `core.autocrlf=true` no

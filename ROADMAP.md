@@ -19,7 +19,7 @@ ideia.
 | `pipeline connections` | organização real, 61 service connections |
 | `pipeline references` | organização real: 61 conexões e 67 Variable Groups varridos |
 | perfis de configuração | `--profile` verificado contra o container e a organização reais |
-| `heimdall version` e tag `v0.1.0` | `go install …@v0.1.0` instala por versão, sem clonar |
+| `heimdall version` e tags `v0.1.0`/`v0.2.0` | `go install …@v0.2.0` instala por versão, sem clonar |
 
 ## Usar antes de construir
 
@@ -41,6 +41,31 @@ código. Valem mais do que qualquer item abaixo.
   federação elimina uma renovação futura e um motivo de pipeline quebrada.
 
 ## Próximo
+
+### `states coverage` em vários containers de uma vez
+**Achado real, 2026-10-13, e o mais forte da lista: a falta disso já produziu
+uma conclusão errada.** O `coverage` do container `nap` apontou 11 resource
+groups "sem state". Varrendo os outros 7 containers da mesma conta à mão, 5
+deles (`fichascompl-dev-rg`, `fichascomplcomp-dev`/`hml`, `fichascomplfront-dev`/`hml`)
+têm state em `area87`. A ressalva impressa salvou a leitura, mas depender de
+quem lê fazer um laço de shell é o que precisa acabar.
+
+Desenho: `--container` aceitando vários, ou `--all-containers` listando os
+containers da conta. A listagem de containers é plano de dados do Storage, a
+mesma permissão que o comando já pede. Cada container continua sendo varrido
+como hoje; o que muda é o relatório dizer EM QUAL container está o state.
+
+Efeito colateral útil, do mesmo laço à mão: o container `servicosbase` tem 5
+states rastreando resource groups que não estão mais na assinatura
+(`certificados-dev-rg`, `gvcollegepro-dev`/`hml-rg`, `gvhuborquestrador-dev`/`hml-rg`).
+Dois deles batem com os Variable Groups que o `references` achou.
+
+### Rodar o `remap --apply` contra um move de verdade
+**Dívida de verificação, não de código.** O plano já foi conferido contra um
+move real (`webappdesenvolvimento-dev-rg`, de `92dbecc2` para `51852c54`, com os
+três ids novos existindo no destino). Falta a execução, que precisa do
+repositório do módulo clonado e com `terraform init` feito. Enquanto não rodar,
+o `--apply` tem só teste com runner falso — e está escrito assim no README.
 
 ### Validade real das credenciais, via Microsoft Graph
 **A premissa original estava errada.** O roadmap dizia que "a API do Azure

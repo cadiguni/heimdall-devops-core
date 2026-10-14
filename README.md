@@ -13,14 +13,16 @@ são de leitura por padrão e explicitam contra o que estão operando.
 
 - Go 1.25 ou superior (exigido pelo Azure SDK e pelo terraform-exec)
 - `terraform` — só para gerar a entrada do `plan-review`
-- Azure CLI (`az`) autenticado — só para os comandos que leem o Azure
+- Azure CLI (`az`) autenticado — só para os comandos que leem o Azure.
+  O `states coverage` precisa também de leitura na assinatura (`Reader`), que é
+  permissão separada do acesso ao Storage
 
 ## Instalação
 
 Para **usar**, instale por versão — não precisa clonar:
 
 ```sh
-go install github.com/cadiguni/heimdall-devops-core/cmd/heimdall@v0.1.0
+go install github.com/cadiguni/heimdall-devops-core/cmd/heimdall@v0.2.0
 ```
 
 Para **desenvolver**, instale do seu checkout:
@@ -38,7 +40,7 @@ go build -o heimdall ./cmd/heimdall
 **Evite `@latest` logo depois de um push.** Ele resolve para o que o
 `proxy.golang.org` indexou, que leva alguns minutos para acompanhar uma tag
 nova — e o sintoma é um comando recém-escrito simplesmente não existir no
-binário. A versão explícita (`@v0.1.0`) e o checkout não têm esse atraso.
+binário. A versão explícita (`@v0.2.0`) e o checkout não têm esse atraso.
 
 Para conferir o que está instalado:
 
@@ -47,7 +49,7 @@ heimdall --version
 ```
 
 A versão sai do binário, sem precisar de `-ldflags`. Vinda de
-`go install …@v0.1.0`, é a versão. Vinda de `go build` dentro do repositório, é
+`go install …@v0.2.0`, é a versão. Vinda de `go build` dentro do repositório, é
 um pseudo-version com commit e data:
 
 ```

@@ -79,7 +79,9 @@ Windows, o instalador só atualiza o PATH de shells abertos depois dele.
 
 | Comando | Precisa de |
 | --- | --- |
-| `terraform states *`, `terraform import` | role de *data plane* no Storage: `Storage Blob Data Reader` para ler, `Storage Blob Data Contributor` para o `--apply` |
+| `terraform states list/show/rm/mv/remap`, `terraform import` | role de *data plane* no Storage: `Storage Blob Data Reader` para ler, `Storage Blob Data Contributor` para o `--apply` |
+| `terraform states coverage` | o data plane acima **e** leitura na assinatura (`Reader`). São permissões diferentes, e o comando diz qual faltou |
+| `pipeline references` | leitura dos Variable Groups e das service connections do projeto; com `--skip-devops`, nada |
 | `pipeline variables`, `pipeline connections` | leitura dos Variable Groups / service connections do projeto |
 | `terraform plan-review`, `pipeline diagnose` | nada — leem arquivo local |
 
@@ -439,5 +441,5 @@ MSYS_NO_PATHCONV=1 heimdall terraform import azurerm_resource_group.rg /subscrip
 ```
 
 **`go install …@latest` entrega um binário sem o comando novo.** O proxy do Go
-leva alguns minutos para indexar. Use a versão explícita (`@v0.1.0`) ou instale
+leva alguns minutos para indexar. Use a versão explícita (`@v0.2.0`) ou instale
 do checkout.
